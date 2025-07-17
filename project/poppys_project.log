@@ -1,0 +1,49 @@
+[2025-07-17 18:10:43,976] INFO poppys MachineReport GET called with params: <QueryDict: {'machine_id': ['9']}>
+[2025-07-17 18:10:43,976] INFO poppys No date param, using today's date: 2025-07-17
+[2025-07-17 18:10:44,052] INFO poppys Initial logs count for date 2025-07-17: 10
+[2025-07-17 18:10:44,056] INFO poppys Filtered logs by MACHINE_ID=9: 1
+[2025-07-17 18:10:44,059] INFO poppys DB DATA: MACHINE_ID=9, DATE=2025-07-17, START_TIME=11:00:00, END_TIME=11:10:00, MODE=1, NEEDLE_RUNTIME=360.0, RESERVE=20, STATUS=Fetched
+[2025-07-17 18:10:44,060] INFO poppys --- Detailed Time Conversion for MACHINE_ID=9 ---
+[2025-07-17 18:10:44,061] INFO poppys Start Time: 11:00:00, End Time: 11:10:00
+[2025-07-17 18:10:44,061] INFO poppys Raw Duration (seconds): 600.0 seconds
+[2025-07-17 18:10:44,064] INFO poppys Raw Duration (hours): 600.0 / 3600 = 0.16666666666666666 hours
+[2025-07-17 18:10:44,070] INFO poppys Total Break Overlap (seconds): 0 seconds
+[2025-07-17 18:10:44,071] INFO poppys Total Break Overlap (hours): 0 / 3600 = 0.0 hours
+[2025-07-17 18:10:44,073] INFO poppys Final Duration (hours): 0.16666666666666666 - 0.0 = 0.16666666666666666 hours
+[2025-07-17 18:10:44,073] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-17 18:10:44,074] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-17 18:10:44,075] INFO poppys --- Summary Conversions for MACHINE_ID=9 ---
+[2025-07-17 18:10:44,076] INFO poppys Total Hours = PT (Sewing) + NPT (sum of Modes 2 to 7)
+[2025-07-17 18:10:44,077] INFO poppys PT (Sewing) = 0.16666666666666666 hours
+[2025-07-17 18:10:44,077] INFO poppys NPT (sum of Modes 2 to 7) = 0 hours
+[2025-07-17 18:10:44,077] INFO poppys Total Hours = 0.16666666666666666 + 0 = 0.16666666666666666 hours
+[2025-07-17 18:10:44,079] INFO poppys PT % = (Sewing / Total Hours) × 100 = (0.16666666666666666 / 0.16666666666666666) × 100 = 100.00%
+[2025-07-17 18:10:44,082] INFO poppys NPT % = (NPT / Total Hours) × 100 = (0 / 0.16666666666666666) × 100 = 0.00%
+[2025-07-17 18:10:44,084] INFO poppys Needle Runtime % = (Total Needle Runtime / Sewing duration) × 100 = (360.0 / (0.16666666666666666 × 3600)) × 100 = 60.00%
+[2025-07-17 18:10:44,085] INFO poppys Sewing Speed = Average of SPM (RESERVE field) for Mode 1 entries = 20.00
+[2025-07-17 18:10:44,085] INFO poppys Stitch Count = Sum of STITCH_COUNT across all entries = 100
+[2025-07-17 18:10:44,086] INFO poppys Explanation: All durations are in hours. For example, 10 minutes = 10/60 = 0.166666... hours. Percentages are calculated as per the formula above.
+[2025-07-17 18:10:44,096] INFO poppys Calculation for table:
+[2025-07-17 18:10:44,101] INFO poppys Metric	Value	Calculation / Notes
+[2025-07-17 18:10:44,106] INFO poppys Total Hours	00:10	End - Start
+[2025-07-17 18:10:44,106] INFO poppys Sewing (Mode 1)	00:10	Since MODE = 1
+[2025-07-17 18:10:44,108] INFO poppys Idle (Mode 2)	00:00	Since MODE = 2
+[2025-07-17 18:10:44,109] INFO poppys Rework (Mode 6)	00:00	Not present
+[2025-07-17 18:10:44,110] INFO poppys No Feeding (Mode 3)	00:00	Since MODE = 3
+[2025-07-17 18:10:44,115] INFO poppys Meeting (Mode 4)	00:00	Since MODE = 4
+[2025-07-17 18:10:44,116] INFO poppys Maintenance (Mode 5)	00:00	Since MODE = 5
+[2025-07-17 18:10:44,116] INFO poppys Needle Break (Mode 7)	00:00	Not present
+[2025-07-17 18:10:44,116] INFO poppys PT %	100.00 %	(10 / 10) × 100 = 100.00%
+[2025-07-17 18:10:44,117] INFO poppys NPT %	0.00 %	(0 / 10) × 100 = 0.00%
+[2025-07-17 18:10:44,117] INFO poppys Needle Runtime %	60.00 %	(360.0 / (0.16666666666666666 × 3600)) × 100 = 60.00%
+[2025-07-17 18:10:44,117] INFO poppys Sewing Speed (SPM)	20.00	From RESERVE (SPM) directly
+[2025-07-17 18:10:44,117] INFO poppys Stitch Count	100	From STITCH_COUNT field
+[2025-07-17 18:10:44,120] INFO poppys ----
+[2025-07-17 18:10:44,120] INFO poppys Total Hours	00:10	End - Start (11:10 - 11:00)
+[2025-07-17 18:10:44,121] INFO poppys Sewing (Mode 1)	00:10	Since MODE = 1
+[2025-07-17 18:10:44,121] INFO poppys Needle Runtime	360.0	From NEEDLE_RUNTIME field
+[2025-07-17 18:10:44,122] INFO poppys Sewing Speed (SPM)	20.00	RESERVE / (duration * 60)
+[2025-07-17 18:10:44,122] INFO poppys Stitch Count	100	From STITCH_COUNT field
+[2025-07-17 18:10:44,123] INFO poppys Date	Machine ID	Total Hours	Sewing	Idle	Rework Hours	No Feeding	Meeting	Maintenance	Needle Break	PT %	NPT %	Needle Runtime %	Sewing Speed	Stitch Count
+[2025-07-17 18:10:44,123] INFO poppys 2025-07-17	9	00:10	00:10	00:00	00:00	00:00	00:00	00:00	00:00	00:10	00:00	60.00%	20.00	100
+[2025-07-17 18:10:44,124] INFO poppys Excluded logs:

@@ -1,0 +1,454 @@
+
+.date-filter {
+  padding-top: 0;
+  flex: 2;
+  min-width: 350px;
+  width: 100%;
+}
+.date-input-group {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.date-field {
+  position: relative;
+  width: 100%;
+}
+.calendar-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #3498db;
+  font-size: 16px;
+  z-index: 1;
+}
+.date-input {
+  padding: 12px 12px 12px 38px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: all 0.2s ease;
+  width: 70%;
+  background: #f9fafb;
+}
+.date-input:focus {
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+  outline: none;
+}
+.date-input:hover {
+  border-color: #bbb;
+}
+.date-label {
+  position: absolute;
+  top: -8px;
+  left: 36px;
+  padding: 0 4px;
+  background: white;
+  font-size: 12px;
+  color: #3498db;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+.date-separator {
+  font-weight: 500;
+  color: #555;
+  padding: 0 8px;
+  font-size: 15px;
+}
+@media (max-width: 900px) {
+  .date-input-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .date-separator {
+    text-align: center;
+    margin: 5px 0;
+  }
+}
+          .machine-root {
+            background: #fff;
+            min-height: 100vh;
+            padding-bottom: 80px;
+            margin-top: -30px;
+          }
+          .machine-header-card {
+            background: #fff;
+            color: #fff;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(49,130,206,0.13);
+            padding: 15px;
+            margin-bottom: 5px;
+            text-align: left;
+          }
+          .machine-header-title {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+          }
+          .machine-header-desc {
+            font-size: 1.1rem;
+            opacity: 0.93;
+            margin-bottom: 0.2rem;
+          }
+          .machine-header-actions {
+            margin-top: 1.2rem;
+          }
+          .machine-filter-card {
+            display: none;
+          }
+          .machine-filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.2rem;
+            align-items: center;
+            margin-bottom: 0.3rem;
+          }
+          .machine-search-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+          }
+          .machine-search-group input[type="text"] {
+            width: 160px;
+            transition: box-shadow 0.2s;
+          }
+          .machine-search-group input[type="text"]:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #3182ce33;
+            border-color: #3182ce;
+          }
+          .search-inside-btn {
+            position: absolute;
+            right: 2px;
+            top: 2px;
+            bottom: 2px;
+            padding: 0 14px;
+            height: calc(100% - 4px);
+            border-radius: 6px;
+            font-size: 14px;
+            z-index: 2;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            min-width: 0 !important;
+            
+            color: #fff;
+            transition: background 0.2s;
+          }
+         
+          .machine-label {
+            font-weight: 500;
+            margin-left: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+          }
+          .machine-date {
+            margin-left: 6px;
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 15px;
+            background: #fff;
+          }
+          .machine-action-row {
+            display: flex;
+            gap: 0.7rem;
+            margin-top: 0.2rem;
+          }
+          .machine-btn {
+            border-radius: 6px;
+            padding: 10px 18px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s, border 0.2s;
+            margin-right: 0.2rem;
+            margin-bottom: 0.2rem;
+            border: none;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+          }
+          .machine-btn:last-child {
+            margin-right: 0;
+          }
+          .machine-btn:disabled {
+            background: #e2e8f0;
+            color: #a0aec0;
+            cursor: not-allowed;
+          }
+          .machine-btn-blue {
+            background: #3182ce;
+            color: #fff;
+          }
+          .machine-btn-blue:hover {
+            background: #2563eb;
+          }
+          .machine-btn-red {
+            background: #e53e3e;
+            color: #fff;
+          }
+          .machine-btn-red:hover {
+            background: #c53030;
+          }
+          .machine-btn-green:hover {
+            background: #2f855a;
+          }
+          .machine-btn-orange {
+            background: #ed8936;
+            color: #fff;
+          }
+          .machine-btn-orange:hover {
+            background: #dd6b20;
+          }
+          .machine-btn-purple {
+            background: #805ad5;
+            color: #fff;
+          }
+          .machine-btn-purple:hover {
+            background: #6b46c1;
+          }
+          .machine-table-card {
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 2px 12px rgba(49,130,206,0.08);
+            padding: 1.5rem 2rem 1.2rem 2rem;
+            margin-bottom: 2.5rem;
+          }
+          .machine-table-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #3182ce;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+          }
+          .machine-info-btns-row {
+            display: flex;
+            gap: 0.7rem;
+            align-items: center;
+            margin-left: 0;
+            margin-top: 0;
+          }
+          .machine-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px;
+            background: #fff;
+          }
+          .machine-table th {
+            border: 1px solid #e2e8f0;
+            background: #3182ce;
+            padding: 10px 4px;
+            font-weight: 700;
+            font-size: 1rem;
+            text-align: center;
+            color: #fcfcfc;
+          }
+          .machine-table td {
+            border: 1px solid #e2e8f0;
+            padding: 8px;
+            text-align: center;
+            font-size: 15px;
+            color: #374151;
+            background: #fff;
+          }
+          .machine-table-nodata {
+            text-align: center;
+            padding: 24px;
+            color: #718096;
+            background: #f7fafc;
+            font-size: 1.1rem;
+          }
+          .machine-pagination {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 24px;
+            margin-bottom: 0;
+            position: static;
+            width: 100%;
+            background: transparent;
+            z-index: 10;
+            padding: 12px 0 0 0;
+            box-shadow: none;
+          }
+          .machine-tiles-row {
+            display: flex;
+            gap: 2rem;
+            margin: 2.5rem 0 1.5rem 0;
+            justify-content: stretch;
+            flex-wrap: wrap;
+            width: 100%;
+          }
+          .machine-tiles-row-full {
+            width: 100%;
+            margin: 32px 0 24px 0;
+            gap: 0;
+          }
+          .machine-tile {
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(49,130,206,0.07);
+            padding: 1.2rem 2.2rem;
+            min-width: 140px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 8px;
+          }
+          .machine-tile-shade {
+            box-shadow: none;
+          }
+          .machine-tile-label {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+          }
+          .machine-tile-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+          }
+          .machine-pie-card {
+            display: flex;
+            align-items: center;
+            gap: 2.5rem;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(49,130,206,0.08);
+            padding: 2rem 2.5rem;
+            margin: 0;
+            max-width: 100%;
+            min-width: 320px;
+            width: 100%;
+          }
+          .machine-pie-card-full {
+            width: 100%;
+            margin: 0 0 32px 0;
+            max-width: 100%;
+          }
+          .machine-pie-chart {
+            width: 320px;
+            min-width: 220px;
+            height: 260px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .machine-pie-chart-large {
+            width: 50%;
+            min-width: 320px;
+            height: 380px;
+            max-width: 600px;
+          }
+          .machine-pie-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.7rem;
+          }
+          .machine-pie-title {
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            color: #3182ce;
+          }
+          .machine-pie-label {
+            display: flex;
+            align-items: center;
+            font-size: 1rem;
+            color: #2d3748;
+            background: #f7fafc;
+            border-radius: 5px;
+            padding: 6px 12px;
+            margin-bottom: 2px;
+          }
+          @media (max-width: 1100px) {
+            .machine-pie-card,
+            .machine-pie-card-full {
+              max-width: 100%;
+            }
+            .machine-table {
+              min-width: 600px;
+            }
+            .machine-tiles-row,
+            .machine-tiles-row-full {
+              gap: 1rem;
+            }
+            .machine-tile {
+              padding: 1rem 1.2rem;
+              min-width: 110px;
+            }
+            .machine-pie-chart,
+            .machine-pie-chart-large {
+              width: 100%;
+              min-width: 0;
+              height: 320px;
+              max-width: 100%;
+            }
+          }
+          @media (max-width: 900px) {
+            .machine-header-card,
+            .machine-table-card,
+            .machine-pie-card,
+            .machine-pie-card-full {
+              padding: 1.2rem 0.7rem;
+            }
+            .machine-header-actions {
+              flex-direction: column;
+              align-items: stretch;
+              gap: 0.7rem;
+            }
+            .machine-pie-card,
+            .machine-pie-card-full {
+              flex-direction: column;
+              align-items: stretch;
+              gap: 1.2rem;
+            }
+            .machine-pie-chart,
+            .machine-pie-chart-large {
+              width: 100%;
+              min-width: 0;
+              height: 220px;
+              max-width: 100%;
+            }
+          }
+          @media (max-width: 600px) {
+            .machine-header-card,
+            .machine-table-card,
+            .machine-pie-card,
+            .machine-pie-card-full {
+              padding: 1rem 0.2rem;
+            }
+            .machine-table {
+              min-width: 400px !important;
+            }
+            .machine-btn {
+              font-size: 14px;
+              padding: 8px 10px;
+            }
+            .machine-pie-card,
+            .machine-pie-card-full {
+              padding: 1rem 0.2rem;
+            }
+            .machine-pie-chart,
+            .machine-pie-chart-large {
+              height: 160px;
+            }
+            .machine-tiles-row,
+            .machine-tiles-row-full {
+              gap: 0.5rem;
+              margin: 1.2rem 0 1rem 0;
+            }
+             .machine-tile {
+              padding: 0.7rem 0.7rem;
+              min-width: 80px;
+            }
+          }
+            
+  
