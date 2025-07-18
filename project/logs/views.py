@@ -23,6 +23,14 @@ MODES = {
     7: "Needle break",
 }
 
+# --- Helper function for list-based logs start/end time ---
+def get_machine_times(logs, machine_id):
+    machine_logs = [log for log in logs if log.MACHINE_ID == machine_id]
+    if not machine_logs:
+        return "", ""
+    start_time = min(machine_logs, key=lambda l: l.START_TIME).START_TIME.strftime("%H:%M")
+    end_time = max(machine_logs, key=lambda l: l.END_TIME).END_TIME.strftime("%H:%M")
+    return start_time, end_time
 
 """ Fetch all the existing machine logs for Poppys users & it will print in console"""
 """ Condition 1 - Allow all the data posting via POSTMAN without any restrictions irrespective of user permissions """
@@ -92,7 +100,176 @@ class PoppysMachineLogListView(generics.ListAPIView):
 """ Condition 4 - Break Exclusion - allow to post data without any restrictions via POSTMAN and restrict the GET method to Poppys users only """
 """ Condition 5 - Modes of 7 """
 
+
+
 class MachineReport(APIView):
+    
+    def get(self, request, *args, **kwargs):
+        logger.info(f"MachineReport GET called with params: {request.query_params}")
+        date_str = request.query_params.get('date')
+        machine_id_filter = request.query_params.get('machine_id')
+        if date_str:
+            try:
+                report_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                logger.info(f"Parsed report_date: {report_date}")
+            except ValueError:
+                logger.error("Invalid date format received.")
+                return Response({"error": "Invalid date format. Use YYYY-MM-DD."}, status=400)
+        else:
+            report_date = datetime.now().date()
+            logger.info(f"No date param, using today's date: {report_date}")
+
+        start_window = time(8, 30)
+        end_window = time(19, 30)
+        
+        
+                # Trim times to main window
+        if st < start_window:
+            excluded_outside = True
+            outside_end = min(et, start_window)
+            duration_seconds = (datetime.combine(report_date, outside_end) - datetime.combine(report_date, st)).total_seconds()
+            hh, mm = divmod(int(duration_seconds // 60), 60)
+            excluded_logs.append({
+                "MACHINE_ID": log.MACHINE_ID,
+                "START_TIME": st.strftime("%H:%M"),
+                "END_TIME": outside_end.strftime("%H:%M"),
+                "REASON": "Outside main window (before 08:30)",
+                "Outside Main Window Time Excluded": f"{hh:02d}:{mm:02d}"
+            })
+            st = max(st, start_window)
+        if et > end_window:
+            excluded_outside = True
+            outside_start = max(st, end_window)
+            duration_seconds = (datetime.combine(report_date, et) - datetime.combine(report_date, outside_start)).total_seconds()
+            hh, mm = divmod(int(duration_seconds // 60), 60)
+            excluded_logs.append({
+                "MACHINE_ID": log.MACHINE_ID,
+                "START_TIME": outside_start.strftime("%H:%M"),
+                "END_TIME": et.strftime("%H:%M"),
+                "REASON": "Outside main window (after 19:30)",
+                "Outside Main Window Time Excluded": f"{hh:02d}:{mm:02d}"
+            })
+            et = min(et, end_window)
+        # If after adjustment, nothing remains, skip
+        if st >= et:
+            logger.info(f"Log MACHINE_ID={log.MACHINE_ID} skipped due to being fully outside main window after adjustment.")
+            
+            #Break Time Calculations
+        breaks = [
+            (time(10, 30), time(10, 40)),
+            (time(13, 20), time(14, 0)),
+            (time(16, 20), time(16, 30)),
+        ]
+
+        logs = MachineLog.objects.filter(DATE=report_date)
+        logger.info(f"Initial logs count for date {report_date}: {logs.count()}")
+        if machine_id_filter:
+            logs = logs.filter(MACHINE_ID=machine_id_filter)
+            logger.info(f"Filtered logs by MACHINE_ID={machine_id_filter}: {logs.count()}")
+
+        # --- Exclude logs that are entirely within break times ---
+        filtered_logs = []
+        for log in logs:
+            try:
+                st = log.START_TIME if isinstance(log.START_TIME, time) else datetime.strptime(str(log.START_TIME), "%H:%M:%S").time()
+                et = log.END_TIME if isinstance(log.END_TIME, time) else datetime.strptime(str(log.END_TIME), "%H:%M:%S").time()
+            except Exception as e:
+                logger.error(f"Error parsing times for log {log.id if hasattr(log, 'id') else ''}: {e}")
+                continue
+            # Exclude if log is fully within any break
+            omit = False
+            for b_start, b_end in breaks:
+                if st >= b_start and et <= b_end:
+                    logger.info(f"Omitting log MACHINE_ID={log.MACHINE_ID} fully within break {b_start.strftime('%H:%M')}–{b_end.strftime('%H:%M')}")
+                    omit = True
+                    break
+            if not omit:
+                filtered_logs.append(log)
+        logs = filtered_logs
+
+        report = {}
+        excluded_logs = []
+        calculation_logs = {}
+
+        # Log all incoming data from DB with status
+        for log in logs:
+            logger.info(
+                f"DB DATA: MACHINE_ID={log.MACHINE_ID}, DATE={log.DATE}, START_TIME={log.START_TIME}, END_TIME={log.END_TIME}, MODE={log.MODE}, "
+                f"NEEDLE_RUNTIME={getattr(log, 'NEEDLE_RUNTIME', '')}, RESERVE={getattr(log, 'RESERVE', '')}, STATUS=Fetched"
+            )
+
+        for log in logs:
+            try:
+                st = log.START_TIME if isinstance(log.START_TIME, time) else datetime.strptime(str(log.START_TIME), "%H:%M:%S").time()
+                et = log.END_TIME if isinstance(log.END_TIME, time) else datetime.strptime(str(log.END_TIME), "%H:%M:%S").time()
+            except Exception as e:
+                logger.error(f"Error parsing times for log {log.id if hasattr(log, 'id') else ''}: {e}")
+                continue
+
+           # --- Outside main window exclusion with duration calculation ---
+            original_st, original_et = st, et
+            excluded_outside = False
+
+            # Trim times to main window and log excluded parts
+            if st < start_window:
+                excluded_outside = True
+                outside_end = min(et, start_window)
+                duration_seconds = (datetime.combine(report_date, outside_end) - datetime.combine(report_date, st)).total_seconds()
+                hh, mm = divmod(int(duration_seconds // 60), 60)
+                excluded_logs.append({
+                    "MACHINE_ID": log.MACHINE_ID,
+                    "START_TIME": st.strftime("%H:%M"),
+                    "END_TIME": outside_end.strftime("%H:%M"),
+                    "REASON": "Outside main window (before 08:30)",
+                    "Outside Main Window Time Excluded": f"{hh:02d}:{mm:02d}"
+                })
+                st = max(st, start_window)
+            if et > end_window:
+                excluded_outside = True
+                outside_start = max(st, end_window)
+                duration_seconds = (datetime.combine(report_date, et) - datetime.combine(report_date, outside_start)).total_seconds()
+                hh, mm = divmod(int(duration_seconds // 60), 60)
+                excluded_logs.append({
+                    "MACHINE_ID": log.MACHINE_ID,
+                    "START_TIME": outside_start.strftime("%H:%M"),
+                    "END_TIME": et.strftime("%H:%M"),
+                    "REASON": "Outside main window (after 19:30)",
+                    "Outside Main Window Time Excluded": f"{hh:02d}:{mm:02d}"
+                })
+                et = min(et, end_window)
+            # If after adjustment, nothing remains, skip
+            if st >= et:
+                logger.info(f"Log MACHINE_ID={log.MACHINE_ID} skipped due to being fully outside main window after adjustment.")
+                continue
+
+            total_break_overlap = 0
+            excluded_parts = []
+            for b_start, b_end in breaks:
+                latest_start = max(st, b_start)
+                earliest_end = min(et, b_end)
+                if latest_start < earliest_end:
+                    overlap_seconds = (datetime.combine(report_date, earliest_end) - datetime.combine(report_date, latest_start)).total_seconds()
+                    total_break_overlap += overlap_seconds
+
+                    hh, mm = divmod(int(overlap_seconds // 60), 60)
+                    work_seconds = (datetime.combine(report_date, et) - datetime.combine(report_date, st)).total_seconds() - overlap_seconds
+                    wh, wm = divmod(int(work_seconds // 60), 60)
+
+                    excluded_parts.append({
+                        "MACHINE_ID": log.MACHINE_ID,
+                        "START_TIME": latest_start.strftime("%H:%M"),
+                        "END_TIME": earliest_end.strftime("%H:%M"),
+                        "REASON": f"Break overlap with {b_start.strftime('%H:%M')} - {b_end.strftime('%H:%M')}",
+                        "Break Time Excluded": f"{hh:02d}:{mm:02d}",
+                        "Work Time Remaining": f"{wh:02d}:{wm:02d}"
+                    })
+                    logger.info(f"Excluded (Partial Break): MACHINE_ID={log.MACHINE_ID}, TIME={latest_start.strftime('%H:%M')}–{earliest_end.strftime('%H:%M')}")
+
+            excluded_logs.extend(excluded_parts)
+
+            duration_seconds = (datetime.combine(report_date, et) - datetime.combine(report_date, st)).total_seconds()
+            duration = duration_seconds / 3600.0
+            duration -= total_break_overlap / 3600.0
     """ def get_permissions(self):
         if self.request.method == 'GET':
             return [IsPoppysUser()]
@@ -129,6 +306,27 @@ class MachineReport(APIView):
         if machine_id_filter:
             logs = logs.filter(MACHINE_ID=machine_id_filter)
             logger.info(f"Filtered logs by MACHINE_ID={machine_id_filter}: {logs.count()}")
+
+        # --- Exclude logs that are entirely within break times ---
+        filtered_logs = []
+        for log in logs:
+            try:
+                st = log.START_TIME if isinstance(log.START_TIME, time) else datetime.strptime(str(log.START_TIME), "%H:%M:%S").time()
+                et = log.END_TIME if isinstance(log.END_TIME, time) else datetime.strptime(str(log.END_TIME), "%H:%M:%S").time()
+            except Exception as e:
+                logger.error(f"Error parsing times for log {log.id if hasattr(log, 'id') else ''}: {e}")
+                continue
+            # Exclude if log is fully within any break
+            omit = False
+            for b_start, b_end in breaks:
+                if st >= b_start and et <= b_end:
+                    logger.info(f"Omitting log MACHINE_ID={log.MACHINE_ID} fully within break {b_start.strftime('%H:%M')}–{b_end.strftime('%H:%M')}")
+                    omit = True
+                    break
+            if not omit:
+                filtered_logs.append(log)
+        logs = filtered_logs
+
         report = {}
         excluded_logs = []
         calculation_logs = {}
@@ -148,14 +346,54 @@ class MachineReport(APIView):
                 logger.error(f"Error parsing times for log {log.id if hasattr(log, 'id') else ''}: {e}")
                 continue
 
-            if st < start_window or et > end_window:
+            # --- Outside main window exclusion with duration calculation ---
+            original_st, original_et = st, et
+            
+            # Check if start time is before main window (before 08:30)
+            if st < start_window:
+                outside_end = min(et, start_window)
+                duration_seconds = (datetime.combine(report_date, outside_end) - datetime.combine(report_date, st)).total_seconds()
+                hh, mm = divmod(int(duration_seconds // 60), 60)
+                # Calculate work time remaining after exclusion
+                total_work_seconds = (datetime.combine(report_date, original_et) - datetime.combine(report_date, original_st)).total_seconds()
+                work_seconds = total_work_seconds - duration_seconds
+                wh, wm = divmod(int(work_seconds // 60), 60)
+                
                 excluded_logs.append({
                     "MACHINE_ID": log.MACHINE_ID,
                     "START_TIME": st.strftime("%H:%M"),
-                    "END_TIME": et.strftime("%H:%M"),
-                    "REASON": "Outside main window"
+                    "END_TIME": outside_end.strftime("%H:%M"),
+                    "REASON": f"Outside main window (before {start_window.strftime('%H:%M')})",
+                    "Outside Main Window Time Excluded": f"{hh:02d}:{mm:02d}",
+                    "Work Time Remaining": f"{wh:02d}:{wm:02d}"
                 })
-                logger.info(f"Excluded (Outside main window): MACHINE_ID={log.MACHINE_ID}, START_TIME={st.strftime('%H:%M')}, END_TIME={et.strftime('%H:%M')}")
+                logger.info(f"Excluded (Outside main window - before): MACHINE_ID={log.MACHINE_ID}, TIME={st.strftime('%H:%M')}–{outside_end.strftime('%H:%M')}")
+                st = max(st, start_window)
+            
+            # Check if end time is after main window (after 19:30)
+            if et > end_window:
+                outside_start = max(st, end_window)
+                duration_seconds = (datetime.combine(report_date, et) - datetime.combine(report_date, outside_start)).total_seconds()
+                hh, mm = divmod(int(duration_seconds // 60), 60)
+                # Calculate work time remaining after exclusion
+                total_work_seconds = (datetime.combine(report_date, original_et) - datetime.combine(report_date, original_st)).total_seconds()
+                work_seconds = total_work_seconds - duration_seconds
+                wh, wm = divmod(int(work_seconds // 60), 60)
+                
+                excluded_logs.append({
+                    "MACHINE_ID": log.MACHINE_ID,
+                    "START_TIME": outside_start.strftime("%H:%M"),
+                    "END_TIME": et.strftime("%H:%M"),
+                    "REASON": f"Outside main window (after {end_window.strftime('%H:%M')})",
+                    "Outside Main Window Time Excluded": f"{hh:02d}:{mm:02d}",
+                    "Work Time Remaining": f"{wh:02d}:{wm:02d}"
+                })
+                logger.info(f"Excluded (Outside main window - after): MACHINE_ID={log.MACHINE_ID}, TIME={outside_start.strftime('%H:%M')}–{et.strftime('%H:%M')}")
+                et = min(et, end_window)
+            
+            # If after adjustment, nothing remains, skip this log
+            if st >= et:
+                logger.info(f"Log MACHINE_ID={log.MACHINE_ID} skipped due to being fully outside main window after adjustment.")
                 continue
 
             total_break_overlap = 0
@@ -305,6 +543,15 @@ class MachineReport(APIView):
                     "Value": duration_hhmm(duration),
                     "Calculation / Notes": "Since MODE = 7"
                 })
+            # --- SPM calculation for all modes (no restriction) ---
+            spm_value_all = reserve
+            report[machine_id]["Total SPM"] += spm_value_all
+            report[machine_id]["SPM Instances"] += 1
+            calculation_logs[machine_id].append({
+                "Metric": "SPM (All Modes)",
+                "Value": f"{spm_value_all:.2f}",
+                "Calculation / Notes": "RESERVE for all modes"
+            })
 
         summary = []
         for idx, (machine_id, data) in enumerate(report.items(), 1):
@@ -334,10 +581,11 @@ class MachineReport(APIView):
             logger.info(f"PT % = (Sewing / Total Hours) × 100 = ({PT} / {total_hours}) × 100 = {pt_pct:.2f}%")
             logger.info(f"NPT % = (NPT / Total Hours) × 100 = ({NPT} / {total_hours}) × 100 = {npt_pct:.2f}%")
             logger.info(f"Needle Runtime % = (Total Needle Runtime / Sewing duration) × 100 = ({needle_runtime_secs} / ({PT} × 3600)) × 100 = {needle_time_pct:.2f}%")
-            logger.info(f"Sewing Speed = Average of SPM (RESERVE field) for Mode 1 entries = {spm:.2f}")
+            logger.info(f"Sewing Speed = Average of SPM (RESERVE field) for all Modes = {spm:.2f}")
             logger.info(f"Stitch Count = Sum of STITCH_COUNT across all entries = {stitch_count}")
-            logger.info("Explanation: All durations are in hours. For example, 10 minutes = 10/60 = 0.166666... hours. Percentages are calculated as per the formula above.")
+            logger.info("Test Explanation: All durations are in hours. For example, 10 minutes = 10/60 = 0.166666... hours. Percentages are calculated as per the formula above.")
 
+            start_time, end_time = get_machine_times(logs, machine_id)
             summary.append({
                 "S.no": idx,
                 "Machine ID": machine_id,
@@ -356,8 +604,8 @@ class MachineReport(APIView):
                 "Needle Time %": round(needle_time_pct, 2),
                 "SPM": round(spm, 2),
                 "Stitch Count": stitch_count,
-                "Start Time": logs.filter(MACHINE_ID=machine_id).order_by("START_TIME").first().START_TIME.strftime("%H:%M") if logs.filter(MACHINE_ID=machine_id).exists() else "",
-                "End Time": logs.filter(MACHINE_ID=machine_id).order_by("-END_TIME").first().END_TIME.strftime("%H:%M") if logs.filter(MACHINE_ID=machine_id).exists() else "",
+                "Start Time": start_time,
+                "End Time": end_time,
             })
 
             # Calculation log for summary
@@ -417,6 +665,41 @@ class MachineReport(APIView):
         logger.info("Excluded logs:")
         for excl in excluded_logs:
             logger.info(str(excl))
+
+        # Log the full summary table as well
+        logger.info("Full Summary Table:")
+        logger.info("Date\tMachine ID\tTotal Hours\tSewing\tIdle\tRework Hours\tNo Feeding\tMeeting\tMaintenance\tNeedle Break\tPT %\tNPT %\tNeedle Runtime %\tSewing Speed\tStitch Count")
+        for row in summary:
+            total_hours = row['Total Hours']
+            sewing = row['Sewing Hours']
+            idle = row['Idle Hours']
+            rework = row.get('Rework Hours', '0')
+            no_feeding = row['No feeding Hours']
+            meeting = row['Meeting Hours']
+            maintenance = row['Maintenance Hours']
+            needle_break = row.get('Needle Break', '0')
+            pt = row['Productive Time (PT)']
+            npt = row['Non-Productive Time (NPT)']
+            needle_runtime_pct = f"{row['Needle Time %']:.2f}%"
+            sewing_speed = f"{row['SPM']:.2f}"
+            stitch_count = row.get('Stitch Count', '0')
+            logger.info(
+                f"{date_str or report_date}\t"
+                f"{row['Machine ID']}\t"
+                f"{total_hours}\t"
+                f"{sewing}\t"
+                f"{idle}\t"
+                f"{rework}\t"
+                f"{no_feeding}\t"
+                f"{meeting}\t"
+                f"{maintenance}\t"
+                f"{needle_break}\t"
+                f"{pt}\t"
+                f"{npt}\t"
+                f"{needle_runtime_pct}\t"
+               f"{sewing_speed}\t"
+                f"{stitch_count}"
+            )
 
         return Response({
             "summary": summary,

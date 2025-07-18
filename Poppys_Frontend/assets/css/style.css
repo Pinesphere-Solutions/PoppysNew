@@ -1,4 +1,7 @@
-
+body, html {
+  font-family: 'Inter';
+  font-size: 14px;
+}
 .date-filter {
   padding-top: 0;
   flex: 2;
@@ -12,7 +15,7 @@
 }
 .date-field {
   position: relative;
-  width: 100%;
+  width: 55%;
 }
 .calendar-icon {
   position: absolute;
@@ -27,9 +30,9 @@
   padding: 12px 12px 12px 38px;
   border: 1px solid #ddd;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: 14px;
   transition: all 0.2s ease;
-  width: 70%;
+  width: 35%;
   background: #f9fafb;
 }
 .date-input:focus {
@@ -55,7 +58,7 @@
   font-weight: 500;
   color: #555;
   padding: 0 8px;
-  font-size: 15px;
+  font-size: 14px;
 }
 @media (max-width: 900px) {
   .date-input-group {
@@ -153,7 +156,7 @@
             padding: 8px 12px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
-            font-size: 15px;
+            font-size: 14px;
             background: #fff;
           }
           .machine-action-row {
@@ -164,7 +167,7 @@
           .machine-btn {
             border-radius: 6px;
             padding: 10px 18px;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 500;
             cursor: pointer;
             transition: background 0.2s, color 0.2s, border 0.2s;
@@ -215,7 +218,7 @@
           .machine-table-card {
             background: #fff;
             border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(49,130,206,0.08);
+            box-shadow: 1px 1px 12px 10px rgba(49,130,206,0.08);
             padding: 1.5rem 2rem 1.2rem 2rem;
             margin-bottom: 2.5rem;
           }
@@ -242,7 +245,7 @@
           }
           .machine-table th {
             border: 1px solid #e2e8f0;
-            background: #3182ce;
+            background: #2f75b2;
             padding: 10px 4px;
             font-weight: 700;
             font-size: 1rem;
@@ -253,7 +256,7 @@
             border: 1px solid #e2e8f0;
             padding: 8px;
             text-align: center;
-            font-size: 15px;
+            font-size: 14px;
             color: #374151;
             background: #fff;
           }
@@ -451,4 +454,131 @@
             }
           }
             
+  /* Machine Report styles */
   
+.machine-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 24px 0 12px 0;
+  gap: 16px;
+}
+.machine-title {
+  font-weight: 700;
+  font-size: 18px;
+  color: #434343;
+}
+.machine-title-btns {
+  display: flex;
+  gap: 10px;
+}
+.machine-btn-csv {
+  background: #d7fee3;
+  color: #0c6d2a;
+  border: none;
+  border-radius: 30px;
+  padding: 4px 13px;
+  font-weight: 400;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(52, 211, 153, 0.08);
+  cursor: pointer;
+}
+.machine-btn-html {
+  background: #c5eefa;
+  color: #045d78;
+  border: none;
+  border-radius: 30px;
+  padding: 10px 15px;
+  font-weight: 400;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(124,58,237,0.08);
+  cursor: pointer;
+}
+.machine-btn-raw {
+  background: #fcedcf;
+  color: #b45309;
+  border: none;
+  border-radius: 30px;
+  padding: 10px 15px;
+  font-weight: 400;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.08);
+  cursor: pointer;
+}
+.machine-btn-icon {
+  font-size: 14px;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.machine-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  align-items: center;
+  margin-top: 1.2rem;
+  margin-bottom: 1.2rem;
+}
+.machine-select {
+  min-width: 160px;
+  padding: 12px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  color: #374151;
+}
+.machine-btn-generate {
+  background: #32adff;
+  color: #ffffff;
+  border: none;
+  border-radius: 30px;
+  padding: 10px 15px;
+  font-weight: 400;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(49, 130, 206, 0.08);
+  cursor: pointer;
+  min-width: 90px;
+}
+.machine-btn-reset {
+  background: #ff5c5c;
+  color: #ffffff;
+  border: none;
+  border-radius: 30px;
+  padding: 10px 15px;
+  font-weight: 400;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.08);
+  cursor: pointer;
+}
+.machine-table-scroll {
+  overflow-x: auto;
+}
+.machine-pagination-label {
+  font-weight: 500;
+  font-size: 16px;
+}
+.tile-bg-blue { background: #e3f2fd !important; }
+.tile-color-blue { color: #1976d2 !important; }
+.tile-bg-green { background: #e8f5e9 !important; }
+.tile-color-green { color: #388e3c !important; }
+.tile-bg-orange { background: #fff3e0 !important; }
+.tile-color-orange { color: #f57c00 !important; }
+.tile-bg-pink { background: #fce4ec !important; }
+.tile-color-pink { color: #c2185b !important; }
+.machine-pie-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.machine-pie-name {
+  min-width: 90px;
+  display: inline-block;
+}
+.machine-pie-value {
+  font-weight: 600;
+  margin-left: 8px;
+}
+/* End - Machine Report Styles */

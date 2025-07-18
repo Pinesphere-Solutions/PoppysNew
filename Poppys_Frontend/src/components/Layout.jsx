@@ -4,6 +4,7 @@ import { FaIndustry, FaUserCog } from "react-icons/fa";
 import { GiSewingMachine } from "react-icons/gi";
 import { BsBarChartLine } from "react-icons/bs";
 import { Link, Outlet } from "react-router-dom";
+import headerBg from "../../assets/images/9.jpg"; // Import image
 
 const menuItems = [
   { label: "Dashboard", icon: <MdDashboard />, path: "/dashboard" },
@@ -28,8 +29,8 @@ export default function Layout({ children }) {
       {/* Header */}
       <header
         style={{
-          background: "#f9f9f9",
-          color: "#3182ce",
+          background: `url(${headerBg}) center center / cover no-repeat`,
+          color: "#fff",
           padding: 0,
           display: "flex",
           alignItems: "center",
@@ -44,7 +45,9 @@ export default function Layout({ children }) {
           boxShadow: "0 2px 8px rgba(0,0,0,0.04)"
         }}
       >
-        <span style={{ fontWeight: 600 }}>Poppys Sewing Machine Dashboard</span>
+        {/* <span className="dashboard-title" style={{ fontWeight: 600, verticalAlign: "middle", textShadow: "0 2px 8px #0008" }}>
+          Poppys Sewing Machine Dashboard
+        </span> */}
       </header>
 
       <div
@@ -112,7 +115,7 @@ export default function Layout({ children }) {
                   to={item.path}
                   style={{
                     padding: minimized ? "0.9rem 0" : "0.9rem 1.5rem",
-                    color: "#3182ce",
+                    color: "#5a5a5a",
                     textDecoration: "none",
                     fontWeight: 500,
                     display: "flex",
@@ -158,7 +161,7 @@ export default function Layout({ children }) {
                   href="#"
                   style={{
                     padding: minimized ? "0.9rem 0" : "0.9rem 1.5rem",
-                    color: "#3182ce",
+                    color: "#5a5a5a",
                     textDecoration: "none",
                     fontWeight: 500,
                     display: "flex",
@@ -220,7 +223,7 @@ export default function Layout({ children }) {
       {/* Footer */}
       <footer
         style={{
-          background: "#3182ce",
+          background: "#1980c4",
           color: "#fff",
           textAlign: "center",
           padding: 0,
@@ -277,6 +280,6 @@ export default function Layout({ children }) {
           }
         `}
       </style>
-    </div>
+   </div>
   );
 }

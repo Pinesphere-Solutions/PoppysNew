@@ -4,7 +4,8 @@ import { FaSearch } from "react-icons/fa";
 import { SiMicrosoftexcel } from "react-icons/si";
 import { FaCalendarAlt } from "react-icons/fa";
 import { FaDownload } from "react-icons/fa";
-import '../../assets/css/style.css';
+import '../../assets/css/style.css'; // Import your CSS styles
+
 const tableHeaders = [
   "Date",
   "Total Hours",
@@ -181,7 +182,7 @@ export default function Machine() {
       >
         Prev
       </button>
-      <span style={{ fontWeight: 500, fontSize: 16 }}>
+      <span className="machine-pagination-label">
         Page {page} of {pageCount}
       </span>
       <button
@@ -201,173 +202,118 @@ export default function Machine() {
     {
       label: "Total Hours",
       value: pieRow.totalHours ?? 0,
-      bg: "#e3f2fd",
-      color: "#1976d2",
+      bg: "tile-bg-blue",
+      color: "tile-color-blue",
     },
     {
       label: "Sewing",
       value: pieRow.sewing ?? 0,
-      bg: "#e8f5e9",
-      color: "#388e3c",
+      bg: "tile-bg-green",
+      color: "tile-color-green",
     },
-    { label: "Idle", value: pieRow.idle ?? 0, bg: "#fff3e0", color: "#f57c00" },
+    { label: "Idle", value: pieRow.idle ?? 0, bg: "tile-bg-orange", color: "tile-color-orange" },
     {
       label: "Rework",
       value: pieRow.rework ?? 0,
-      bg: "#fce4ec",
-      color: "#c2185b",
+      bg: "tile-bg-pink",
+      color: "tile-color-pink",
     },
   ];
 
   return (
     <div className="machine-root">
-      {/* Header Card */}
-      <div
-        className="machine-header-actions"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "1.2rem",
-          alignItems: "center",
-          marginTop: "1.2rem",
-        }}
-      >
-        {/* ...existing header actions... */}
+      {/* Title and Buttons Row */}
+      <div className="machine-title-row">
+        <div className="machine-title">
+          Machine Report Table
+        </div>
+        <div className="machine-title-btns">
+          <button
+            type="button"
+            className="machine-btn machine-btn-csv"
+            onClick={handleCSV}
+          >
+            <SiMicrosoftexcel className="machine-btn-icon" /> CSV
+          </button>
+          <button
+            type="button"
+            className="machine-btn machine-btn-html"
+            onClick={handleHTML}
+          >
+            <FaDownload className="machine-btn-icon" />
+            HTML
+          </button>
+          <button
+            type="button"
+            className="machine-btn machine-btn-raw"
+            onClick={handleRawData}
+          >
+            <FaDownload className="machine-btn-icon" />
+            View Raw Data
+          </button>
+        </div>
       </div>
 
       {/* Table Card */}
       <div className="machine-table-card">
-        <div
-          className="machine-table-title"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "1.2rem",
-            flexWrap: "wrap",
-          }}
-        >
-          Machine Report Table
-          <div
-            className="machine-header-actions"
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "1.2rem",
-              alignItems: "center",
-              marginTop: 0,
-            }}
-          >
-            <div className="date-filter">
-              <div className="date-input-group">
-                <div className="date-field">
-                  <FaCalendarAlt className="calendar-icon" />
-                  <input
-                    type="date"
-                    value={from}
-                    onChange={(e) => setFrom(e.target.value)}
-                    className="date-input"
-                  />
-                  <span className="date-label">From</span>
+        {/* Filters and Actions inside table card */}
+                <div className="machine-header-actions" style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
+                  <div style={{ display: "flex", gap: 25, alignItems: "center", flexWrap: "wrap" }}>
+                    <div className="date-input-group" style={{ display: "flex", gap: 8 }}>
+                      <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span><FaCalendarAlt className="calendar-icon" /></span>
+                        <input
+                          type="date"
+                          value={from}
+                          onChange={(e) => setFrom(e.target.value)}
+                          className="date-input"
+                          style={{ width: 110 }}
+                        />
+                        <span className="date-label" style={{ fontSize: 12 }}>From</span>
+                      </div>
+                      <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span><FaCalendarAlt className="calendar-icon" /></span>
+                        <input
+                          type="date"
+                          value={to}
+                          onChange={(e) => setTo(e.target.value)}
+                          className="date-input"
+                          style={{ width: 110 }}
+                        />
+                        <span className="date-label" style={{ fontSize: 12 }}>To</span>
+                      </div>
+                    </div>
+                    <select
+                      value={machineId}
+                      onChange={(e) => setMachineId(e.target.value)}
+                      className="machine-select"
+                      style={{ minWidth: 120, height: 42, fontSize: 14 }}
+                    >
+                      <option value="">Select Machine ID</option>
+                      <option value="M1">M1</option>
+                      <option value="M2">M2</option>
+                      <option value="M3">M3</option>
+                    </select>
+                    <button
+                      type="button"
+                      className="machine-btn machine-btn-blue machine-btn-generate"
+                      onClick={() => setPage(1)}
+                      style={{ height: 32, fontSize: 14, padding: "0 16px" }}
+                    >
+                      Generate
+                    </button>
+                    <button
+                      type="button"
+                      className="machine-btn machine-btn-red machine-btn-reset"
+                      onClick={handleReset}
+                      style={{ height: 32, fontSize: 14, padding: "0 16px" }}
+                    >
+                      Reset
+                    </button>
+                  </div>
                 </div>
-                <div className="date-field">
-                  <FaCalendarAlt className="calendar-icon" />
-                  <input
-                    type="date"
-                    value={to}
-                    onChange={(e) => setTo(e.target.value)}
-                    className="date-input"
-                  />
-                  <span className="date-label">To</span>
-                </div>
-              </div>
-            </div>
-            <select
-              value={machineId}
-              onChange={(e) => setMachineId(e.target.value)}
-              style={{
-                minWidth: 160,
-                padding: "12px 12px",
-                border: "1px solid #cbd5e1",
-                borderRadius: 6,
-                fontSize: 15,
-                background: "#fff",
-                color: "#374151",
-              }}
-            >
-              <option value="">Select Machine ID</option>
-              <option value="M1">M1</option>
-              <option value="M2">M2</option>
-              <option value="M3">M3</option>
-            </select>
-            <button
-              type="button"
-              className="machine-btn machine-btn-blue"
-              style={{ minWidth: 90 }}
-              onClick={() => setPage(1)}
-            >
-              Generate
-            </button>
-            <button
-              type="button"
-              className="machine-btn machine-btn-red"
-              onClick={handleReset}
-            >
-              Reset
-            </button>
-          </div>
-          {/* Info Buttons Row */}
-          <div
-            className="machine-info-btns-row"
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "0.7rem",
-              alignItems: "center",
-              marginLeft: "0",
-              marginTop: 0,
-            }}
-          >
-            <button
-              type="button"
-              className="machine-btn"
-              style={{
-                background: "#2f855a",
-                color: "#fff",
-                border: "none",
-              }}
-              onClick={handleCSV}
-            >
-              <SiMicrosoftexcel
-                style={{ fontSize: 20, verticalAlign: "middle", marginRight: 6 }}
-              /> CSV
-            </button>
-            <button
-              type="button"
-              className="machine-btn machine-btn-purple"
-              onClick={handleHTML}
-            >
-              <FaDownload style={{ fontSize: 16, verticalAlign: "middle", marginRight: 6 }} />
-              HTML
-            </button>
-            <button
-              type="button"
-              className="machine-btn machine-btn-orange"
-              onClick={handleRawData}
-            >
-              <FaDownload style={{ fontSize: 16, verticalAlign: "middle", marginRight: 6 }} />
-              View Raw Data
-            </button>
-            <button
-              type="button"
-              className="machine-btn machine-btn-blue"
-              onClick={handleSummary}
-            >
-              <FaDownload style={{ fontSize: 16, verticalAlign: "middle", marginRight: 6 }} />
-              View Summary
-            </button>
-          </div>
-        </div>
-        <div style={{ overflowX: "auto" }}>
+        
+        <div className="machine-table-scroll">
           <table className="machine-table">
             <thead>
               <tr>
@@ -416,15 +362,8 @@ export default function Machine() {
       <div className="machine-tiles-row machine-tiles-row-full">
         {tileData.map((tile, idx) => (
           <div
-            className="machine-tile machine-tile-shade"
+            className={`machine-tile machine-tile-shade ${tile.bg} ${tile.color}`}
             key={tile.label}
-            style={{
-              background: tile.bg,
-              color: tile.color,
-              flex: 1,
-              minWidth: 0,
-              margin: "0 8px",
-            }}
           >
             <div className="machine-tile-label">{tile.label}</div>
             <div className="machine-tile-value">{tile.value}</div>
@@ -456,32 +395,24 @@ export default function Machine() {
           </ResponsiveContainer>
         </div>
         <div className="machine-pie-info">
-          <div className="machine-pie-title">Machine Time Distribution</div>
           {getPieData(pieRow).map((item, idx) => (
             <div className="machine-pie-label" key={item.name}>
               <span
+                className="machine-pie-dot"
                 style={{
-                  display: "inline-block",
-                  width: 12,
-                  height: 12,
                   background: pieColors[idx % pieColors.length],
-                  borderRadius: "50%",
-                  marginRight: 8,
-                  verticalAlign: "middle",
                 }}
               ></span>
-              <span style={{ minWidth: 90, display: "inline-block" }}>
+              <span className="machine-pie-name">
                 {item.name}:
               </span>
-              <span style={{ fontWeight: 600, marginLeft: 8 }}>
+              <span className="machine-pie-value">
                 {item.value} hrs
               </span>
             </div>
           ))}
         </div>
       </div>
-
-      
     </div>
   );
 }

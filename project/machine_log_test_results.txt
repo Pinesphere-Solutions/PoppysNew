@@ -1,0 +1,187 @@
+====================================================================================================
+Test Case: API should allow all data to be posted without any blockers or restrictions.
+Payload: {"MACHINE_ID": 10, "MODE": 2, "START_TIME": "07:00:00", "END_TIME": "20:00:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 1, "STITCH_COUNT": 0, "NEEDLE_RUNTIME": 0, "NEEDLE_STOPTIME": 0, "Tx_LOGID": 101, "Str_LOGID": 101, "DEVICE_ID": 1, "RESERVE": 0}
+Formula: No restriction, all data should be accepted.
+Status Code: 201
+Response: {"id":69,"DATE":"2025-07-20","START_TIME":"07:00:00","END_TIME":"20:00:00","operator_name":"Operator1","mode_description":"Idle","MACHINE_ID":10,"LINE_NUMB":1,"OPERATOR_ID":"1","MODE":2,"STITCH_COUNT":0,"NEEDLE_RUNTIME":0.0,"NEEDLE_STOPTIME":0.0,"Tx_LOGID":101,"Str_LOGID":101,"DEVICE_ID":1,"RESERVE":"0","created_at":"2025-07-18T23:13:46.712869+05:30"}
+Result: SUCCESS - Data accepted as expected.
+====================================================================================================
+
+====================================================================================================
+Test Case: API should allow all data to be posted without any blockers or restrictions.
+Payload: {"MACHINE_ID": 10, "MODE": 2, "START_TIME": "07:00:00", "END_TIME": "20:00:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 1, "STITCH_COUNT": 0, "NEEDLE_RUNTIME": 0, "NEEDLE_STOPTIME": 0, "Tx_LOGID": 101, "Str_LOGID": 101, "DEVICE_ID": 1, "RESERVE": 0}
+Formula: No restriction, all data should be accepted.
+Status Code: 201
+Response: {"id":70,"DATE":"2025-07-20","START_TIME":"07:00:00","END_TIME":"20:00:00","operator_name":"Operator1","mode_description":"Idle","MACHINE_ID":10,"LINE_NUMB":1,"OPERATOR_ID":"1","MODE":2,"STITCH_COUNT":0,"NEEDLE_RUNTIME":0.0,"NEEDLE_STOPTIME":0.0,"Tx_LOGID":101,"Str_LOGID":101,"DEVICE_ID":1,"RESERVE":"0","created_at":"2025-07-18T23:14:23.164595+05:30"}
+Result: SUCCESS - Data accepted as expected.
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC01
+Scenario: API should allow all data to be posted without any blockers or restrictions.
+Payload: {"MACHINE_ID": 1, "MODE": 2, "START_TIME": "07:00:00", "END_TIME": "20:00:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 1, "STITCH_COUNT": 0, "NEEDLE_RUNTIME": 0, "NEEDLE_STOPTIME": 0, "Tx_LOGID": 101, "Str_LOGID": 101, "DEVICE_ID": 1, "RESERVE": 0}
+Formula: No restriction, all data should be accepted. (views.py: Condition 1)
+Status Code: 201
+Response: {"id":71,"DATE":"2025-07-20","START_TIME":"07:00:00","END_TIME":"20:00:00","operator_name":"Operator1","mode_description":"Idle","MACHINE_ID":1,"LINE_NUMB":1,"OPERATOR_ID":"1","MODE":2,"STITCH_COUNT":0,"NEEDLE_RUNTIME":0.0,"NEEDLE_STOPTIME":0.0,"Tx_LOGID":101,"Str_LOGID":101,"DEVICE_ID":1,"RESERVE":"0","created_at":"2025-07-18T23:20:20.366906+05:30"}
+Result: SUCCESS - Data accepted as expected.
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC02
+Scenario: Only logs within the official work window (08:30 AM to 07:30 PM) are considered.
+Payload: {"MACHINE_ID": 2, "MODE": 1, "START_TIME": "08:00:00", "END_TIME": "09:00:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 2, "STITCH_COUNT": 100, "NEEDLE_RUNTIME": 10, "NEEDLE_STOPTIME": 1, "Tx_LOGID": 102, "Str_LOGID": 102, "DEVICE_ID": 2, "RESERVE": 25}
+Formula: Trim to main window: Only 08:30–09:00 is counted (30 min). (views.py: start_window/end_window logic)
+Status Code: 201
+Response: {"id":72,"DATE":"2025-07-20","START_TIME":"08:00:00","END_TIME":"09:00:00","operator_name":"Operator2","mode_description":"Sewing","MACHINE_ID":2,"LINE_NUMB":1,"OPERATOR_ID":"2","MODE":1,"STITCH_COUNT":100,"NEEDLE_RUNTIME":10.0,"NEEDLE_STOPTIME":1.0,"Tx_LOGID":102,"Str_LOGID":102,"DEVICE_ID":2,"RESERVE":"25","created_at":"2025-07-18T23:20:22.303006+05:30"}
+Result: SUCCESS - Data accepted as expected.
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC03
+Scenario: Logs entirely within break times are omitted from calculations.
+Payload: {"MACHINE_ID": 3, "MODE": 1, "START_TIME": "10:32:00", "END_TIME": "10:38:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 3, "STITCH_COUNT": 50, "NEEDLE_RUNTIME": 5, "NEEDLE_STOPTIME": 1, "Tx_LOGID": 103, "Str_LOGID": 103, "DEVICE_ID": 3, "RESERVE": 20}
+Formula: Omitted: Log is fully within morning break (10:30–10:40). (views.py: break exclusion logic)
+Status Code: 201
+Response: {"id":73,"DATE":"2025-07-20","START_TIME":"10:32:00","END_TIME":"10:38:00","operator_name":"Operator3","mode_description":"Sewing","MACHINE_ID":3,"LINE_NUMB":1,"OPERATOR_ID":"3","MODE":1,"STITCH_COUNT":50,"NEEDLE_RUNTIME":5.0,"NEEDLE_STOPTIME":1.0,"Tx_LOGID":103,"Str_LOGID":103,"DEVICE_ID":3,"RESERVE":"20","created_at":"2025-07-18T23:20:24.158676+05:30"}
+Result: SUCCESS - Data accepted as expected.
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC04
+Scenario: Any log time outside the main work window (before 08:30 or after 19:30) is excluded.
+Payload: {"MACHINE_ID": 4, "MODE": 2, "START_TIME": "19:15:00", "END_TIME": "19:45:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 4, "STITCH_COUNT": 0, "NEEDLE_RUNTIME": 0, "NEEDLE_STOPTIME": 0, "Tx_LOGID": 104, "Str_LOGID": 104, "DEVICE_ID": 4, "RESERVE": 0}
+Formula: Only 19:15–19:30 is counted; 19:30–19:45 is excluded. (views.py: outside main window exclusion)
+Status Code: 201
+Response: {"id":74,"DATE":"2025-07-20","START_TIME":"19:15:00","END_TIME":"19:45:00","operator_name":null,"mode_description":"Idle","MACHINE_ID":4,"LINE_NUMB":1,"OPERATOR_ID":"4","MODE":2,"STITCH_COUNT":0,"NEEDLE_RUNTIME":0.0,"NEEDLE_STOPTIME":0.0,"Tx_LOGID":104,"Str_LOGID":104,"DEVICE_ID":4,"RESERVE":"0","created_at":"2025-07-18T23:20:26.038916+05:30"}
+Result: SUCCESS - Data accepted as expected.
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC05
+Scenario: Needle Runtime % is calculated only for logs with the same MACHINE_ID and only if all logs are in Sewing mode.
+Payload: {"MACHINE_ID": 5, "MODE": 1, "START_TIME": "09:00:00", "END_TIME": "10:00:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 5, "STITCH_COUNT": 200, "NEEDLE_RUNTIME": 30, "NEEDLE_STOPTIME": 2, "Tx_LOGID": 105, "Str_LOGID": 105, "DEVICE_ID": 5, "RESERVE": 30}
+Formula: Needle Runtime % = (Total Needle Runtime / Sewing duration) × 100. Only Sewing mode logs for MACHINE_ID=5 are considered. (views.py: summary logic)
+Status Code: 201
+Response: {"id":75,"DATE":"2025-07-20","START_TIME":"09:00:00","END_TIME":"10:00:00","operator_name":null,"mode_description":"Sewing","MACHINE_ID":5,"LINE_NUMB":1,"OPERATOR_ID":"5","MODE":1,"STITCH_COUNT":200,"NEEDLE_RUNTIME":30.0,"NEEDLE_STOPTIME":2.0,"Tx_LOGID":105,"Str_LOGID":105,"DEVICE_ID":5,"RESERVE":"30","created_at":"2025-07-18T23:20:27.969578+05:30"}
+Result: SUCCESS - Data accepted as expected.
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC06
+Scenario: SPM (Stitches Per Minute) is calculated for all modes, average based on SPM instances.
+Payload: {"MACHINE_ID": 6, "MODE": 3, "START_TIME": "14:10:00", "END_TIME": "14:30:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 6, "STITCH_COUNT": 120, "NEEDLE_RUNTIME": 10, "NEEDLE_STOPTIME": 1, "Tx_LOGID": 106, "Str_LOGID": 106, "DEVICE_ID": 6, "RESERVE": 40}
+Formula: SPM = sum(RESERVE for all logs) / number of logs. (views.py: SPM calculation for all modes)
+Status Code: 201
+Response: {"id":76,"DATE":"2025-07-20","START_TIME":"14:10:00","END_TIME":"14:30:00","operator_name":null,"mode_description":"No Feeding","MACHINE_ID":6,"LINE_NUMB":1,"OPERATOR_ID":"6","MODE":3,"STITCH_COUNT":120,"NEEDLE_RUNTIME":10.0,"NEEDLE_STOPTIME":1.0,"Tx_LOGID":106,"Str_LOGID":106,"DEVICE_ID":6,"RESERVE":"40","created_at":"2025-07-18T23:20:29.320965+05:30"}
+Result: SUCCESS - Data accepted as expected.
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC01
+Scenario: API should allow all data to be posted without any blockers or restrictions.
+Payload: {"MACHINE_ID": 1, "MODE": 2, "START_TIME": "07:00:00", "END_TIME": "20:00:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 1, "STITCH_COUNT": 0, "NEEDLE_RUNTIME": 0, "NEEDLE_STOPTIME": 0, "Tx_LOGID": 101, "Str_LOGID": 101, "DEVICE_ID": 1, "RESERVE": 0}
+Status Code: 201
+Response: {"id":77,"DATE":"2025-07-20","START_TIME":"07:00:00","END_TIME":"20:00:00","operator_name":"Operator1","mode_description":"Idle","MACHINE_ID":1,"LINE_NUMB":1,"OPERATOR_ID":"1","MODE":2,"STITCH_COUNT":0,"NEEDLE_RUNTIME":0.0,"NEEDLE_STOPTIME":0.0,"Tx_LOGID":101,"Str_LOGID":101,"DEVICE_ID":1,"RESERVE":"0","created_at":"2025-07-18T23:28:50.633937+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Formula: No restriction, all data should be accepted. (views.py: Condition 1)
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC02
+Scenario: Only logs within the official work window (08:30 AM to 07:30 PM) are considered.
+Payload: {"MACHINE_ID": 2, "MODE": 1, "START_TIME": "08:00:00", "END_TIME": "09:00:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 2, "STITCH_COUNT": 100, "NEEDLE_RUNTIME": 10, "NEEDLE_STOPTIME": 1, "Tx_LOGID": 102, "Str_LOGID": 102, "DEVICE_ID": 2, "RESERVE": 25}
+Status Code: 201
+Response: {"id":78,"DATE":"2025-07-20","START_TIME":"08:00:00","END_TIME":"09:00:00","operator_name":"Operator2","mode_description":"Sewing","MACHINE_ID":2,"LINE_NUMB":1,"OPERATOR_ID":"2","MODE":1,"STITCH_COUNT":100,"NEEDLE_RUNTIME":10.0,"NEEDLE_STOPTIME":1.0,"Tx_LOGID":102,"Str_LOGID":102,"DEVICE_ID":2,"RESERVE":"25","created_at":"2025-07-18T23:28:52.644925+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Formula: Trim to main window: Only 08:30–09:00 is counted (30 min). (views.py: start_window/end_window logic)
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC03
+Scenario: Logs entirely within break times are omitted from calculations.
+Payload: {"MACHINE_ID": 3, "MODE": 1, "START_TIME": "10:32:00", "END_TIME": "10:38:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 3, "STITCH_COUNT": 50, "NEEDLE_RUNTIME": 5, "NEEDLE_STOPTIME": 1, "Tx_LOGID": 103, "Str_LOGID": 103, "DEVICE_ID": 3, "RESERVE": 20}
+Status Code: 201
+Response: {"id":79,"DATE":"2025-07-20","START_TIME":"10:32:00","END_TIME":"10:38:00","operator_name":"Operator3","mode_description":"Sewing","MACHINE_ID":3,"LINE_NUMB":1,"OPERATOR_ID":"3","MODE":1,"STITCH_COUNT":50,"NEEDLE_RUNTIME":5.0,"NEEDLE_STOPTIME":1.0,"Tx_LOGID":103,"Str_LOGID":103,"DEVICE_ID":3,"RESERVE":"20","created_at":"2025-07-18T23:28:54.009855+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Formula: Omitted: Log is fully within morning break (10:30–10:40). (views.py: break exclusion logic)
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC04
+Scenario: Any log time outside the main work window (before 08:30 or after 19:30) is excluded.
+Payload: {"MACHINE_ID": 4, "MODE": 2, "START_TIME": "19:15:00", "END_TIME": "19:45:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 4, "STITCH_COUNT": 0, "NEEDLE_RUNTIME": 0, "NEEDLE_STOPTIME": 0, "Tx_LOGID": 104, "Str_LOGID": 104, "DEVICE_ID": 4, "RESERVE": 0}
+Status Code: 201
+Response: {"id":80,"DATE":"2025-07-20","START_TIME":"19:15:00","END_TIME":"19:45:00","operator_name":null,"mode_description":"Idle","MACHINE_ID":4,"LINE_NUMB":1,"OPERATOR_ID":"4","MODE":2,"STITCH_COUNT":0,"NEEDLE_RUNTIME":0.0,"NEEDLE_STOPTIME":0.0,"Tx_LOGID":104,"Str_LOGID":104,"DEVICE_ID":4,"RESERVE":"0","created_at":"2025-07-18T23:28:55.968595+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Formula: Only 19:15–19:30 is counted; 19:30–19:45 is excluded. (views.py: outside main window exclusion)
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC05
+Scenario: Needle Runtime % is calculated only for logs with the same MACHINE_ID and only if all logs are in Sewing mode.
+Payload: {"MACHINE_ID": 5, "MODE": 1, "START_TIME": "09:00:00", "END_TIME": "10:00:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 5, "STITCH_COUNT": 200, "NEEDLE_RUNTIME": 30, "NEEDLE_STOPTIME": 2, "Tx_LOGID": 105, "Str_LOGID": 105, "DEVICE_ID": 5, "RESERVE": 30}
+Status Code: 201
+Response: {"id":81,"DATE":"2025-07-20","START_TIME":"09:00:00","END_TIME":"10:00:00","operator_name":null,"mode_description":"Sewing","MACHINE_ID":5,"LINE_NUMB":1,"OPERATOR_ID":"5","MODE":1,"STITCH_COUNT":200,"NEEDLE_RUNTIME":30.0,"NEEDLE_STOPTIME":2.0,"Tx_LOGID":105,"Str_LOGID":105,"DEVICE_ID":5,"RESERVE":"30","created_at":"2025-07-18T23:28:57.410589+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Formula: Needle Runtime % = (Total Needle Runtime / Sewing duration) × 100. Only Sewing mode logs for MACHINE_ID=5 are considered. (views.py: summary logic)
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC06
+Scenario: SPM (Stitches Per Minute) is calculated for all modes, average based on SPM instances.
+Payload: {"MACHINE_ID": 6, "MODE": 3, "START_TIME": "14:10:00", "END_TIME": "14:30:00", "DATE": "2025:7:20", "LINE_NUMB": 1, "OPERATOR_ID": 6, "STITCH_COUNT": 120, "NEEDLE_RUNTIME": 10, "NEEDLE_STOPTIME": 1, "Tx_LOGID": 106, "Str_LOGID": 106, "DEVICE_ID": 6, "RESERVE": 40}
+Status Code: 201
+Response: {"id":82,"DATE":"2025-07-20","START_TIME":"14:10:00","END_TIME":"14:30:00","operator_name":null,"mode_description":"No Feeding","MACHINE_ID":6,"LINE_NUMB":1,"OPERATOR_ID":"6","MODE":3,"STITCH_COUNT":120,"NEEDLE_RUNTIME":10.0,"NEEDLE_STOPTIME":1.0,"Tx_LOGID":106,"Str_LOGID":106,"DEVICE_ID":6,"RESERVE":"40","created_at":"2025-07-18T23:28:58.759173+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Formula: SPM = sum(RESERVE for all logs) / number of logs. (views.py: SPM calculation for all modes)
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC07
+Scenario: Needle Runtime % calculation with multiple logs for same MACHINE_ID, only Sewing mode.
+Payload 1: {"MACHINE_ID": 7, "MODE": 1, "START_TIME": "09:00:00", "END_TIME": "09:30:00", "DATE": "2025:7:21", "LINE_NUMB": 1, "OPERATOR_ID": 7, "STITCH_COUNT": 100, "NEEDLE_RUNTIME": 15, "NEEDLE_STOPTIME": 2, "Tx_LOGID": 107, "Str_LOGID": 107, "DEVICE_ID": 7, "RESERVE": 30}
+Status Code: 201
+Response: {"id":83,"DATE":"2025-07-21","START_TIME":"09:00:00","END_TIME":"09:30:00","operator_name":null,"mode_description":"Sewing","MACHINE_ID":7,"LINE_NUMB":1,"OPERATOR_ID":"7","MODE":1,"STITCH_COUNT":100,"NEEDLE_RUNTIME":15.0,"NEEDLE_STOPTIME":2.0,"Tx_LOGID":107,"Str_LOGID":107,"DEVICE_ID":7,"RESERVE":"30","created_at":"2025-07-18T23:29:00.851979+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Payload 2: {"MACHINE_ID": 7, "MODE": 1, "START_TIME": "10:00:00", "END_TIME": "10:45:00", "DATE": "2025:7:21", "LINE_NUMB": 1, "OPERATOR_ID": 7, "STITCH_COUNT": 150, "NEEDLE_RUNTIME": 25, "NEEDLE_STOPTIME": 3, "Tx_LOGID": 108, "Str_LOGID": 108, "DEVICE_ID": 7, "RESERVE": 35}
+Status Code: 201
+Response: {"id":84,"DATE":"2025-07-21","START_TIME":"10:00:00","END_TIME":"10:45:00","operator_name":null,"mode_description":"Sewing","MACHINE_ID":7,"LINE_NUMB":1,"OPERATOR_ID":"7","MODE":1,"STITCH_COUNT":150,"NEEDLE_RUNTIME":25.0,"NEEDLE_STOPTIME":3.0,"Tx_LOGID":108,"Str_LOGID":108,"DEVICE_ID":7,"RESERVE":"35","created_at":"2025-07-18T23:29:01.762510+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Formula: Needle Runtime % = (Total Needle Runtime / Total Sewing duration) × 100. Only Sewing mode logs for MACHINE_ID=7 are considered. (views.py: summary logic)
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC08
+Scenario: SPM calculation with multiple logs for same MACHINE_ID, all modes.
+Payload 1: {"MACHINE_ID": 8, "MODE": 1, "START_TIME": "08:45:00", "END_TIME": "09:15:00", "DATE": "2025:7:21", "LINE_NUMB": 1, "OPERATOR_ID": 8, "STITCH_COUNT": 120, "NEEDLE_RUNTIME": 10, "NEEDLE_STOPTIME": 1, "Tx_LOGID": 109, "Str_LOGID": 109, "DEVICE_ID": 8, "RESERVE": 40}
+Status Code: 201
+Response: {"id":85,"DATE":"2025-07-21","START_TIME":"08:45:00","END_TIME":"09:15:00","operator_name":null,"mode_description":"Sewing","MACHINE_ID":8,"LINE_NUMB":1,"OPERATOR_ID":"8","MODE":1,"STITCH_COUNT":120,"NEEDLE_RUNTIME":10.0,"NEEDLE_STOPTIME":1.0,"Tx_LOGID":109,"Str_LOGID":109,"DEVICE_ID":8,"RESERVE":"40","created_at":"2025-07-18T23:29:03.650595+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Payload 2: {"MACHINE_ID": 8, "MODE": 2, "START_TIME": "09:20:00", "END_TIME": "09:40:00", "DATE": "2025:7:21", "LINE_NUMB": 1, "OPERATOR_ID": 8, "STITCH_COUNT": 0, "NEEDLE_RUNTIME": 0, "NEEDLE_STOPTIME": 0, "Tx_LOGID": 110, "Str_LOGID": 110, "DEVICE_ID": 8, "RESERVE": 20}
+Status Code: 201
+Response: {"id":86,"DATE":"2025-07-21","START_TIME":"09:20:00","END_TIME":"09:40:00","operator_name":null,"mode_description":"Idle","MACHINE_ID":8,"LINE_NUMB":1,"OPERATOR_ID":"8","MODE":2,"STITCH_COUNT":0,"NEEDLE_RUNTIME":0.0,"NEEDLE_STOPTIME":0.0,"Tx_LOGID":110,"Str_LOGID":110,"DEVICE_ID":8,"RESERVE":"20","created_at":"2025-07-18T23:29:04.491612+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Formula: SPM = sum(RESERVE for all logs) / number of logs for MACHINE_ID=8. (views.py: SPM calculation for all modes)
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC09
+Scenario: PT% (Productive Time %) calculation.
+Payload: {"MACHINE_ID": 9, "MODE": 1, "START_TIME": "08:40:00", "END_TIME": "09:40:00", "DATE": "2025:7:21", "LINE_NUMB": 1, "OPERATOR_ID": 9, "STITCH_COUNT": 200, "NEEDLE_RUNTIME": 30, "NEEDLE_STOPTIME": 2, "Tx_LOGID": 111, "Str_LOGID": 111, "DEVICE_ID": 9, "RESERVE": 50}
+Status Code: 201
+Response: {"id":87,"DATE":"2025-07-21","START_TIME":"08:40:00","END_TIME":"09:40:00","operator_name":null,"mode_description":"Sewing","MACHINE_ID":9,"LINE_NUMB":1,"OPERATOR_ID":"9","MODE":1,"STITCH_COUNT":200,"NEEDLE_RUNTIME":30.0,"NEEDLE_STOPTIME":2.0,"Tx_LOGID":111,"Str_LOGID":111,"DEVICE_ID":9,"RESERVE":"50","created_at":"2025-07-18T23:29:06.461899+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Formula: PT% = (Sewing Hours / Total Hours) × 100. (views.py: summary logic)
+====================================================================================================
+
+====================================================================================================
+Test Case ID: TC10
+Scenario: NPT% (Non-Productive Time %) calculation.
+Payload: {"MACHINE_ID": 10, "MODE": 2, "START_TIME": "10:00:00", "END_TIME": "11:00:00", "DATE": "2025:7:21", "LINE_NUMB": 1, "OPERATOR_ID": 10, "STITCH_COUNT": 0, "NEEDLE_RUNTIME": 0, "NEEDLE_STOPTIME": 0, "Tx_LOGID": 112, "Str_LOGID": 112, "DEVICE_ID": 10, "RESERVE": 0}
+Status Code: 201
+Response: {"id":88,"DATE":"2025-07-21","START_TIME":"10:00:00","END_TIME":"11:00:00","operator_name":null,"mode_description":"Idle","MACHINE_ID":10,"LINE_NUMB":1,"OPERATOR_ID":"10","MODE":2,"STITCH_COUNT":0,"NEEDLE_RUNTIME":0.0,"NEEDLE_STOPTIME":0.0,"Tx_LOGID":112,"Str_LOGID":112,"DEVICE_ID":10,"RESERVE":"0","created_at":"2025-07-18T23:29:07.825916+05:30"}
+Result: SUCCESS - Data accepted as expected.
+Formula: NPT% = (Non-Productive Hours / Total Hours) × 100. (views.py: summary logic)
+====================================================================================================
+
+Total Hours (all test scenarios): 20:01

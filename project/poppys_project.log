@@ -1,49 +1,325 @@
-[2025-07-17 18:10:43,976] INFO poppys MachineReport GET called with params: <QueryDict: {'machine_id': ['9']}>
-[2025-07-17 18:10:43,976] INFO poppys No date param, using today's date: 2025-07-17
-[2025-07-17 18:10:44,052] INFO poppys Initial logs count for date 2025-07-17: 10
-[2025-07-17 18:10:44,056] INFO poppys Filtered logs by MACHINE_ID=9: 1
-[2025-07-17 18:10:44,059] INFO poppys DB DATA: MACHINE_ID=9, DATE=2025-07-17, START_TIME=11:00:00, END_TIME=11:10:00, MODE=1, NEEDLE_RUNTIME=360.0, RESERVE=20, STATUS=Fetched
-[2025-07-17 18:10:44,060] INFO poppys --- Detailed Time Conversion for MACHINE_ID=9 ---
-[2025-07-17 18:10:44,061] INFO poppys Start Time: 11:00:00, End Time: 11:10:00
-[2025-07-17 18:10:44,061] INFO poppys Raw Duration (seconds): 600.0 seconds
-[2025-07-17 18:10:44,064] INFO poppys Raw Duration (hours): 600.0 / 3600 = 0.16666666666666666 hours
-[2025-07-17 18:10:44,070] INFO poppys Total Break Overlap (seconds): 0 seconds
-[2025-07-17 18:10:44,071] INFO poppys Total Break Overlap (hours): 0 / 3600 = 0.0 hours
-[2025-07-17 18:10:44,073] INFO poppys Final Duration (hours): 0.16666666666666666 - 0.0 = 0.16666666666666666 hours
-[2025-07-17 18:10:44,073] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
-[2025-07-17 18:10:44,074] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
-[2025-07-17 18:10:44,075] INFO poppys --- Summary Conversions for MACHINE_ID=9 ---
-[2025-07-17 18:10:44,076] INFO poppys Total Hours = PT (Sewing) + NPT (sum of Modes 2 to 7)
-[2025-07-17 18:10:44,077] INFO poppys PT (Sewing) = 0.16666666666666666 hours
-[2025-07-17 18:10:44,077] INFO poppys NPT (sum of Modes 2 to 7) = 0 hours
-[2025-07-17 18:10:44,077] INFO poppys Total Hours = 0.16666666666666666 + 0 = 0.16666666666666666 hours
-[2025-07-17 18:10:44,079] INFO poppys PT % = (Sewing / Total Hours) × 100 = (0.16666666666666666 / 0.16666666666666666) × 100 = 100.00%
-[2025-07-17 18:10:44,082] INFO poppys NPT % = (NPT / Total Hours) × 100 = (0 / 0.16666666666666666) × 100 = 0.00%
-[2025-07-17 18:10:44,084] INFO poppys Needle Runtime % = (Total Needle Runtime / Sewing duration) × 100 = (360.0 / (0.16666666666666666 × 3600)) × 100 = 60.00%
-[2025-07-17 18:10:44,085] INFO poppys Sewing Speed = Average of SPM (RESERVE field) for Mode 1 entries = 20.00
-[2025-07-17 18:10:44,085] INFO poppys Stitch Count = Sum of STITCH_COUNT across all entries = 100
-[2025-07-17 18:10:44,086] INFO poppys Explanation: All durations are in hours. For example, 10 minutes = 10/60 = 0.166666... hours. Percentages are calculated as per the formula above.
-[2025-07-17 18:10:44,096] INFO poppys Calculation for table:
-[2025-07-17 18:10:44,101] INFO poppys Metric	Value	Calculation / Notes
-[2025-07-17 18:10:44,106] INFO poppys Total Hours	00:10	End - Start
-[2025-07-17 18:10:44,106] INFO poppys Sewing (Mode 1)	00:10	Since MODE = 1
-[2025-07-17 18:10:44,108] INFO poppys Idle (Mode 2)	00:00	Since MODE = 2
-[2025-07-17 18:10:44,109] INFO poppys Rework (Mode 6)	00:00	Not present
-[2025-07-17 18:10:44,110] INFO poppys No Feeding (Mode 3)	00:00	Since MODE = 3
-[2025-07-17 18:10:44,115] INFO poppys Meeting (Mode 4)	00:00	Since MODE = 4
-[2025-07-17 18:10:44,116] INFO poppys Maintenance (Mode 5)	00:00	Since MODE = 5
-[2025-07-17 18:10:44,116] INFO poppys Needle Break (Mode 7)	00:00	Not present
-[2025-07-17 18:10:44,116] INFO poppys PT %	100.00 %	(10 / 10) × 100 = 100.00%
-[2025-07-17 18:10:44,117] INFO poppys NPT %	0.00 %	(0 / 10) × 100 = 0.00%
-[2025-07-17 18:10:44,117] INFO poppys Needle Runtime %	60.00 %	(360.0 / (0.16666666666666666 × 3600)) × 100 = 60.00%
-[2025-07-17 18:10:44,117] INFO poppys Sewing Speed (SPM)	20.00	From RESERVE (SPM) directly
-[2025-07-17 18:10:44,117] INFO poppys Stitch Count	100	From STITCH_COUNT field
-[2025-07-17 18:10:44,120] INFO poppys ----
-[2025-07-17 18:10:44,120] INFO poppys Total Hours	00:10	End - Start (11:10 - 11:00)
-[2025-07-17 18:10:44,121] INFO poppys Sewing (Mode 1)	00:10	Since MODE = 1
-[2025-07-17 18:10:44,121] INFO poppys Needle Runtime	360.0	From NEEDLE_RUNTIME field
-[2025-07-17 18:10:44,122] INFO poppys Sewing Speed (SPM)	20.00	RESERVE / (duration * 60)
-[2025-07-17 18:10:44,122] INFO poppys Stitch Count	100	From STITCH_COUNT field
-[2025-07-17 18:10:44,123] INFO poppys Date	Machine ID	Total Hours	Sewing	Idle	Rework Hours	No Feeding	Meeting	Maintenance	Needle Break	PT %	NPT %	Needle Runtime %	Sewing Speed	Stitch Count
-[2025-07-17 18:10:44,123] INFO poppys 2025-07-17	9	00:10	00:10	00:00	00:00	00:00	00:00	00:00	00:00	00:10	00:00	60.00%	20.00	100
-[2025-07-17 18:10:44,124] INFO poppys Excluded logs:
+[2025-07-18 22:15:46,303] INFO poppys MachineReport GET called with params: <QueryDict: {'machine_id': ['3']}>
+[2025-07-18 22:15:46,303] INFO poppys No date param, using today's date: 2025-07-18
+[2025-07-18 22:15:46,435] INFO poppys Initial logs count for date 2025-07-18: 3
+[2025-07-18 22:15:46,437] INFO poppys Filtered logs by MACHINE_ID=3: 1
+[2025-07-18 22:15:46,438] INFO poppys DB DATA: MACHINE_ID=3, DATE=2025-07-18, START_TIME=08:15:00, END_TIME=08:45:00, MODE=2, NEEDLE_RUNTIME=200.0, RESERVE=25, STATUS=Fetched
+[2025-07-18 22:15:46,438] INFO poppys Excluded (Outside main window - before): MACHINE_ID=3, TIME=08:15–08:30
+[2025-07-18 22:15:46,438] INFO poppys --- Detailed Time Conversion for MACHINE_ID=3 ---
+[2025-07-18 22:15:46,438] INFO poppys Start Time: 08:30:00, End Time: 08:45:00
+[2025-07-18 22:15:46,439] INFO poppys Raw Duration (seconds): 900.0 seconds
+[2025-07-18 22:15:46,439] INFO poppys Raw Duration (hours): 900.0 / 3600 = 0.25 hours
+[2025-07-18 22:15:46,439] INFO poppys Total Break Overlap (seconds): 0 seconds
+[2025-07-18 22:15:46,440] INFO poppys Total Break Overlap (hours): 0 / 3600 = 0.0 hours
+[2025-07-18 22:15:46,440] INFO poppys Final Duration (hours): 0.25 - 0.0 = 0.25 hours
+[2025-07-18 22:15:46,440] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-18 22:15:46,443] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-18 22:15:46,444] INFO poppys --- Summary Conversions for MACHINE_ID=3 ---
+[2025-07-18 22:15:46,445] INFO poppys Total Hours = PT (Sewing) + NPT (sum of Modes 2 to 7)
+[2025-07-18 22:15:46,445] INFO poppys PT (Sewing) = 0 hours
+[2025-07-18 22:15:46,446] INFO poppys NPT (sum of Modes 2 to 7) = 0.25 hours
+[2025-07-18 22:15:46,446] INFO poppys Total Hours = 0 + 0.25 = 0.25 hours
+[2025-07-18 22:15:46,446] INFO poppys PT % = (Sewing / Total Hours) × 100 = (0 / 0.25) × 100 = 0.00%
+[2025-07-18 22:15:46,446] INFO poppys NPT % = (NPT / Total Hours) × 100 = (0.25 / 0.25) × 100 = 100.00%
+[2025-07-18 22:15:46,447] INFO poppys Needle Runtime % = (Total Needle Runtime / Sewing duration) × 100 = (0 / (0 × 3600)) × 100 = 0.00%
+[2025-07-18 22:15:46,447] INFO poppys Sewing Speed = Average of SPM (RESERVE field) for all Modes = 25.00
+[2025-07-18 22:15:46,447] INFO poppys Stitch Count = Sum of STITCH_COUNT across all entries = 0
+[2025-07-18 22:15:46,448] INFO poppys Test Explanation: All durations are in hours. For example, 10 minutes = 10/60 = 0.166666... hours. Percentages are calculated as per the formula above.
+[2025-07-18 22:15:46,450] INFO poppys Calculation for table:
+[2025-07-18 22:15:46,452] INFO poppys Metric	Value	Calculation / Notes
+[2025-07-18 22:15:46,452] INFO poppys Total Hours	00:15	End - Start
+[2025-07-18 22:15:46,453] INFO poppys Sewing (Mode 1)	00:00	Since MODE = 1
+[2025-07-18 22:15:46,453] INFO poppys Idle (Mode 2)	00:15	Since MODE = 2
+[2025-07-18 22:15:46,453] INFO poppys Rework (Mode 6)	00:00	Not present
+[2025-07-18 22:15:46,453] INFO poppys No Feeding (Mode 3)	00:00	Since MODE = 3
+[2025-07-18 22:15:46,454] INFO poppys Meeting (Mode 4)	00:00	Since MODE = 4
+[2025-07-18 22:15:46,454] INFO poppys Maintenance (Mode 5)	00:00	Since MODE = 5
+[2025-07-18 22:15:46,454] INFO poppys Needle Break (Mode 7)	00:00	Not present
+[2025-07-18 22:15:46,455] INFO poppys PT %	0.00 %	(0 / 15) × 100 = 0.00%
+[2025-07-18 22:15:46,455] INFO poppys NPT %	100.00 %	(15 / 15) × 100 = 100.00%
+[2025-07-18 22:15:46,455] INFO poppys Needle Runtime %	0.00 %	(0 / (0 × 3600)) × 100 = 0.00%
+[2025-07-18 22:15:46,455] INFO poppys Sewing Speed (SPM)	25.00	From RESERVE (SPM) directly
+[2025-07-18 22:15:46,456] INFO poppys Stitch Count	0	From STITCH_COUNT field
+[2025-07-18 22:15:46,456] INFO poppys ----
+[2025-07-18 22:15:46,456] INFO poppys Total Hours	00:15	End - Start (08:45 - 08:30)
+[2025-07-18 22:15:46,456] INFO poppys Idle (Mode 2)	00:15	Since MODE = 2
+[2025-07-18 22:15:46,458] INFO poppys SPM (All Modes)	25.00	RESERVE for all modes
+[2025-07-18 22:15:46,458] INFO poppys Date	Machine ID	Total Hours	Sewing	Idle	Rework Hours	No Feeding	Meeting	Maintenance	Needle Break	PT %	NPT %	Needle Runtime %	Sewing Speed	Stitch Count
+[2025-07-18 22:15:46,458] INFO poppys 2025-07-18	3	00:15	00:00	00:15	00:00	00:00	00:00	00:00	00:00	00:00	00:15	0.00%	25.00	0
+[2025-07-18 22:15:46,458] INFO poppys Excluded logs:
+[2025-07-18 22:15:46,459] INFO poppys {'MACHINE_ID': 3, 'START_TIME': '08:15', 'END_TIME': '08:30', 'REASON': 'Outside main window (before 08:30)', 'Outside Main Window Time Excluded': '00:15', 'Work Time Remaining': '00:15'}
+[2025-07-18 22:15:46,459] INFO poppys Full Summary Table:
+[2025-07-18 22:15:46,460] INFO poppys Date	Machine ID	Total Hours	Sewing	Idle	Rework Hours	No Feeding	Meeting	Maintenance	Needle Break	PT %	NPT %	Needle Runtime %	Sewing Speed	Stitch Count
+[2025-07-18 22:15:46,462] INFO poppys 2025-07-18	3	00:15	00:00	00:15	00:00	00:00	00:00	00:00	00:00	00:00	00:15	0.00%	25.00	0
+[2025-07-18 22:19:21,050] INFO poppys New MachineLog created (JSON Posted): {'id': 57, 'DATE': '2025-07-18', 'START_TIME': '16:15:00', 'END_TIME': '16:40:00', 'operator_name': 'Operator1', 'mode_description': 'No Feeding', 'MACHINE_ID': 3, 'LINE_NUMB': 1, 'OPERATOR_ID': '1', 'MODE': 3, 'STITCH_COUNT': 100, 'NEEDLE_RUNTIME': 200.0, 'NEEDLE_STOPTIME': 5.0, 'Tx_LOGID': 3, 'Str_LOGID': 3, 'DEVICE_ID': 3, 'RESERVE': '25', 'created_at': '2025-07-18T22:19:21.019179+05:30'}
+[2025-07-18 22:19:26,764] INFO poppys MachineReport GET called with params: <QueryDict: {'machine_id': ['3']}>
+[2025-07-18 22:19:26,766] INFO poppys No date param, using today's date: 2025-07-18
+[2025-07-18 22:19:26,876] INFO poppys Initial logs count for date 2025-07-18: 4
+[2025-07-18 22:19:26,878] INFO poppys Filtered logs by MACHINE_ID=3: 2
+[2025-07-18 22:19:26,886] INFO poppys DB DATA: MACHINE_ID=3, DATE=2025-07-18, START_TIME=08:15:00, END_TIME=08:45:00, MODE=2, NEEDLE_RUNTIME=200.0, RESERVE=25, STATUS=Fetched
+[2025-07-18 22:19:26,886] INFO poppys DB DATA: MACHINE_ID=3, DATE=2025-07-18, START_TIME=16:15:00, END_TIME=16:40:00, MODE=3, NEEDLE_RUNTIME=200.0, RESERVE=25, STATUS=Fetched
+[2025-07-18 22:19:26,887] INFO poppys Excluded (Outside main window - before): MACHINE_ID=3, TIME=08:15–08:30
+[2025-07-18 22:19:26,888] INFO poppys --- Detailed Time Conversion for MACHINE_ID=3 ---
+[2025-07-18 22:19:26,888] INFO poppys Start Time: 08:30:00, End Time: 08:45:00
+[2025-07-18 22:19:26,889] INFO poppys Raw Duration (seconds): 900.0 seconds
+[2025-07-18 22:19:26,889] INFO poppys Raw Duration (hours): 900.0 / 3600 = 0.25 hours
+[2025-07-18 22:19:26,890] INFO poppys Total Break Overlap (seconds): 0 seconds
+[2025-07-18 22:19:26,890] INFO poppys Total Break Overlap (hours): 0 / 3600 = 0.0 hours
+[2025-07-18 22:19:26,891] INFO poppys Final Duration (hours): 0.25 - 0.0 = 0.25 hours
+[2025-07-18 22:19:26,893] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-18 22:19:26,894] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-18 22:19:26,902] INFO poppys Excluded (Partial Break): MACHINE_ID=3, TIME=16:20–16:30
+[2025-07-18 22:19:26,903] INFO poppys --- Detailed Time Conversion for MACHINE_ID=3 ---
+[2025-07-18 22:19:26,904] INFO poppys Start Time: 16:15:00, End Time: 16:40:00
+[2025-07-18 22:19:26,906] INFO poppys Raw Duration (seconds): 1500.0 seconds
+[2025-07-18 22:19:26,906] INFO poppys Raw Duration (hours): 1500.0 / 3600 = 0.4166666666666667 hours
+[2025-07-18 22:19:26,906] INFO poppys Total Break Overlap (seconds): 600.0 seconds
+[2025-07-18 22:19:26,907] INFO poppys Total Break Overlap (hours): 600.0 / 3600 = 0.16666666666666666 hours
+[2025-07-18 22:19:26,908] INFO poppys Final Duration (hours): 0.4166666666666667 - 0.16666666666666666 = 0.25 hours
+[2025-07-18 22:19:26,910] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-18 22:19:26,913] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-18 22:19:26,916] INFO poppys --- Summary Conversions for MACHINE_ID=3 ---
+[2025-07-18 22:19:26,917] INFO poppys Total Hours = PT (Sewing) + NPT (sum of Modes 2 to 7)
+[2025-07-18 22:19:26,918] INFO poppys PT (Sewing) = 0 hours
+[2025-07-18 22:19:26,919] INFO poppys NPT (sum of Modes 2 to 7) = 0.5 hours
+[2025-07-18 22:19:26,921] INFO poppys Total Hours = 0 + 0.5 = 0.5 hours
+[2025-07-18 22:19:26,923] INFO poppys PT % = (Sewing / Total Hours) × 100 = (0 / 0.5) × 100 = 0.00%
+[2025-07-18 22:19:26,923] INFO poppys NPT % = (NPT / Total Hours) × 100 = (0.5 / 0.5) × 100 = 100.00%
+[2025-07-18 22:19:26,924] INFO poppys Needle Runtime % = (Total Needle Runtime / Sewing duration) × 100 = (0 / (0 × 3600)) × 100 = 0.00%
+[2025-07-18 22:19:26,938] INFO poppys Sewing Speed = Average of SPM (RESERVE field) for all Modes = 25.00
+[2025-07-18 22:19:26,940] INFO poppys Stitch Count = Sum of STITCH_COUNT across all entries = 0
+[2025-07-18 22:19:26,940] INFO poppys Test Explanation: All durations are in hours. For example, 10 minutes = 10/60 = 0.166666... hours. Percentages are calculated as per the formula above.
+[2025-07-18 22:19:26,943] INFO poppys Calculation for table:
+[2025-07-18 22:19:26,944] INFO poppys Metric	Value	Calculation / Notes
+[2025-07-18 22:19:26,944] INFO poppys Total Hours	00:30	End - Start
+[2025-07-18 22:19:26,945] INFO poppys Sewing (Mode 1)	00:00	Since MODE = 1
+[2025-07-18 22:19:26,946] INFO poppys Idle (Mode 2)	00:15	Since MODE = 2
+[2025-07-18 22:19:26,946] INFO poppys Rework (Mode 6)	00:00	Not present
+[2025-07-18 22:19:26,947] INFO poppys No Feeding (Mode 3)	00:15	Since MODE = 3
+[2025-07-18 22:19:26,950] INFO poppys Meeting (Mode 4)	00:00	Since MODE = 4
+[2025-07-18 22:19:26,952] INFO poppys Maintenance (Mode 5)	00:00	Since MODE = 5
+[2025-07-18 22:19:26,953] INFO poppys Needle Break (Mode 7)	00:00	Not present
+[2025-07-18 22:19:26,954] INFO poppys PT %	0.00 %	(0 / 30) × 100 = 0.00%
+[2025-07-18 22:19:26,959] INFO poppys NPT %	100.00 %	(30 / 30) × 100 = 100.00%
+[2025-07-18 22:19:26,959] INFO poppys Needle Runtime %	0.00 %	(0 / (0 × 3600)) × 100 = 0.00%
+[2025-07-18 22:19:26,960] INFO poppys Sewing Speed (SPM)	25.00	From RESERVE (SPM) directly
+[2025-07-18 22:19:26,962] INFO poppys Stitch Count	0	From STITCH_COUNT field
+[2025-07-18 22:19:26,963] INFO poppys ----
+[2025-07-18 22:19:26,964] INFO poppys Total Hours	00:15	End - Start (08:45 - 08:30)
+[2025-07-18 22:19:26,965] INFO poppys Idle (Mode 2)	00:15	Since MODE = 2
+[2025-07-18 22:19:26,966] INFO poppys SPM (All Modes)	25.00	RESERVE for all modes
+[2025-07-18 22:19:26,967] INFO poppys Total Hours	00:15	End - Start (16:40 - 16:15)
+[2025-07-18 22:19:26,968] INFO poppys No Feeding (Mode 3)	00:15	Since MODE = 3
+[2025-07-18 22:19:26,969] INFO poppys SPM (All Modes)	25.00	RESERVE for all modes
+[2025-07-18 22:19:26,971] INFO poppys Date	Machine ID	Total Hours	Sewing	Idle	Rework Hours	No Feeding	Meeting	Maintenance	Needle Break	PT %	NPT %	Needle Runtime %	Sewing Speed	Stitch Count
+[2025-07-18 22:19:26,975] INFO poppys 2025-07-18	3	00:30	00:00	00:15	00:00	00:15	00:00	00:00	00:00	00:00	00:30	0.00%	25.00	0
+[2025-07-18 22:19:26,976] INFO poppys Excluded logs:
+[2025-07-18 22:19:26,976] INFO poppys {'MACHINE_ID': 3, 'START_TIME': '08:15', 'END_TIME': '08:30', 'REASON': 'Outside main window (before 08:30)', 'Outside Main Window Time Excluded': '00:15', 'Work Time Remaining': '00:15'}
+[2025-07-18 22:19:26,977] INFO poppys {'MACHINE_ID': 3, 'START_TIME': '16:20', 'END_TIME': '16:30', 'REASON': 'Break overlap with 16:20 - 16:30', 'Break Time Excluded': '00:10', 'Work Time Remaining': '00:15'}
+[2025-07-18 22:19:26,978] INFO poppys Full Summary Table:
+[2025-07-18 22:19:26,978] INFO poppys Date	Machine ID	Total Hours	Sewing	Idle	Rework Hours	No Feeding	Meeting	Maintenance	Needle Break	PT %	NPT %	Needle Runtime %	Sewing Speed	Stitch Count
+[2025-07-18 22:19:26,980] INFO poppys 2025-07-18	3	00:30	00:00	00:15	00:00	00:15	00:00	00:00	00:00	00:00	00:30	0.00%	25.00	0
+[2025-07-18 22:48:20,988] INFO poppys New MachineLog created (JSON Posted): {'id': 58, 'DATE': '2025-07-16', 'START_TIME': '08:50:00', 'END_TIME': '09:00:00', 'operator_name': 'Operator1', 'mode_description': 'Sewing', 'MACHINE_ID': 1, 'LINE_NUMB': 1, 'OPERATOR_ID': '1', 'MODE': 1, 'STITCH_COUNT': 100, 'NEEDLE_RUNTIME': 6.0, 'NEEDLE_STOPTIME': 5.0, 'Tx_LOGID': 10, 'Str_LOGID': 10, 'DEVICE_ID': 1, 'RESERVE': '20', 'created_at': '2025-07-18T22:48:20.852526+05:30'}
+[2025-07-18 22:48:22,859] INFO poppys Duplicate log for MACHINE_ID=1, DATE=2025-07-16, Str_LOGID=1010 (base 10) - Skipped
+[2025-07-18 22:48:24,182] INFO poppys New MachineLog created (JSON Posted): {'id': 59, 'DATE': '2025-07-07', 'START_TIME': '10:00:00', 'END_TIME': '10:15:00', 'operator_name': 'Operator2', 'mode_description': 'No Feeding', 'MACHINE_ID': 2, 'LINE_NUMB': 1, 'OPERATOR_ID': '2', 'MODE': 3, 'STITCH_COUNT': 80, 'NEEDLE_RUNTIME': 4.0, 'NEEDLE_STOPTIME': 1.0, 'Tx_LOGID': 12, 'Str_LOGID': 12, 'DEVICE_ID': 2, 'RESERVE': '22', 'created_at': '2025-07-18T22:48:24.174559+05:30'}
+[2025-07-18 22:48:26,125] INFO poppys New MachineLog created (JSON Posted): {'id': 60, 'DATE': '2025-07-18', 'START_TIME': '08:15:00', 'END_TIME': '08:45:00', 'operator_name': 'Operator3', 'mode_description': 'Idle', 'MACHINE_ID': 3, 'LINE_NUMB': 1, 'OPERATOR_ID': '3', 'MODE': 2, 'STITCH_COUNT': 0, 'NEEDLE_RUNTIME': 200.0, 'NEEDLE_STOPTIME': 5.0, 'Tx_LOGID': 13, 'Str_LOGID': 13, 'DEVICE_ID': 3, 'RESERVE': '25', 'created_at': '2025-07-18T22:48:26.119392+05:30'}
+[2025-07-18 22:48:27,704] INFO poppys New MachineLog created (JSON Posted): {'id': 61, 'DATE': '2025-07-18', 'START_TIME': '16:15:00', 'END_TIME': '16:40:00', 'operator_name': 'Operator1', 'mode_description': 'No Feeding', 'MACHINE_ID': 3, 'LINE_NUMB': 1, 'OPERATOR_ID': '1', 'MODE': 3, 'STITCH_COUNT': 100, 'NEEDLE_RUNTIME': 200.0, 'NEEDLE_STOPTIME': 5.0, 'Tx_LOGID': 14, 'Str_LOGID': 14, 'DEVICE_ID': 3, 'RESERVE': '25', 'created_at': '2025-07-18T22:48:27.690496+05:30'}
+[2025-07-18 22:48:29,963] ERROR poppys Invalid data: {'DATE': [ErrorDetail(string='Date must be in YYYY:MM:DD format', code='invalid')]}
+[2025-07-18 22:48:29,967] WARNING django.request Bad Request: /api/log/
+[2025-07-18 22:53:40,488] INFO poppys Duplicate log for MACHINE_ID=1, DATE=2025-07-16, Str_LOGID=1010 (base 10) - Skipped
+[2025-07-18 22:53:41,943] INFO poppys New MachineLog created (JSON Posted): {'id': 62, 'DATE': '2025-07-07', 'START_TIME': '10:00:00', 'END_TIME': '10:15:00', 'operator_name': 'Operator2', 'mode_description': 'No Feeding', 'MACHINE_ID': 2, 'LINE_NUMB': 1, 'OPERATOR_ID': '2', 'MODE': 3, 'STITCH_COUNT': 80, 'NEEDLE_RUNTIME': 4.0, 'NEEDLE_STOPTIME': 1.0, 'Tx_LOGID': 12, 'Str_LOGID': 12, 'DEVICE_ID': 2, 'RESERVE': '22', 'created_at': '2025-07-18T22:53:41.921019+05:30'}
+[2025-07-18 22:53:43,785] INFO poppys New MachineLog created (JSON Posted): {'id': 63, 'DATE': '2025-07-18', 'START_TIME': '08:15:00', 'END_TIME': '08:45:00', 'operator_name': 'Operator3', 'mode_description': 'Idle', 'MACHINE_ID': 3, 'LINE_NUMB': 1, 'OPERATOR_ID': '3', 'MODE': 2, 'STITCH_COUNT': 0, 'NEEDLE_RUNTIME': 200.0, 'NEEDLE_STOPTIME': 5.0, 'Tx_LOGID': 13, 'Str_LOGID': 13, 'DEVICE_ID': 3, 'RESERVE': '25', 'created_at': '2025-07-18T22:53:43.780454+05:30'}
+[2025-07-18 22:53:45,830] INFO poppys New MachineLog created (JSON Posted): {'id': 64, 'DATE': '2025-07-18', 'START_TIME': '16:15:00', 'END_TIME': '16:40:00', 'operator_name': 'Operator1', 'mode_description': 'No Feeding', 'MACHINE_ID': 3, 'LINE_NUMB': 1, 'OPERATOR_ID': '1', 'MODE': 3, 'STITCH_COUNT': 100, 'NEEDLE_RUNTIME': 200.0, 'NEEDLE_STOPTIME': 5.0, 'Tx_LOGID': 14, 'Str_LOGID': 14, 'DEVICE_ID': 3, 'RESERVE': '25', 'created_at': '2025-07-18T22:53:45.824701+05:30'}
+[2025-07-18 22:53:47,651] ERROR poppys Invalid data: {'DATE': [ErrorDetail(string='Date must be in YYYY:MM:DD format', code='invalid')]}
+[2025-07-18 22:53:47,652] WARNING django.request Bad Request: /api/log/
+[2025-07-18 23:02:11,581] INFO poppys New MachineLog created (JSON Posted): {'id': 65, 'DATE': '2025-07-16', 'START_TIME': '08:50:00', 'END_TIME': '09:00:00', 'operator_name': 'Operator1', 'mode_description': 'Sewing', 'MACHINE_ID': 1, 'LINE_NUMB': 1, 'OPERATOR_ID': '1', 'MODE': 1, 'STITCH_COUNT': 100, 'NEEDLE_RUNTIME': 6.0, 'NEEDLE_STOPTIME': 5.0, 'Tx_LOGID': 10, 'Str_LOGID': 10, 'DEVICE_ID': 1, 'RESERVE': '20', 'created_at': '2025-07-18T23:02:11.548858+05:30'}
+[2025-07-18 23:02:13,606] INFO poppys Duplicate log for MACHINE_ID=1, DATE=2025-07-16, Str_LOGID=1010 (base 10) - Skipped
+[2025-07-18 23:02:15,535] INFO poppys New MachineLog created (JSON Posted): {'id': 66, 'DATE': '2025-07-07', 'START_TIME': '10:00:00', 'END_TIME': '10:15:00', 'operator_name': 'Operator2', 'mode_description': 'No Feeding', 'MACHINE_ID': 2, 'LINE_NUMB': 1, 'OPERATOR_ID': '2', 'MODE': 3, 'STITCH_COUNT': 80, 'NEEDLE_RUNTIME': 4.0, 'NEEDLE_STOPTIME': 1.0, 'Tx_LOGID': 12, 'Str_LOGID': 12, 'DEVICE_ID': 2, 'RESERVE': '22', 'created_at': '2025-07-18T23:02:15.530093+05:30'}
+[2025-07-18 23:02:17,827] INFO poppys New MachineLog created (JSON Posted): {'id': 67, 'DATE': '2025-07-18', 'START_TIME': '08:15:00', 'END_TIME': '08:45:00', 'operator_name': 'Operator3', 'mode_description': 'Idle', 'MACHINE_ID': 3, 'LINE_NUMB': 1, 'OPERATOR_ID': '3', 'MODE': 2, 'STITCH_COUNT': 0, 'NEEDLE_RUNTIME': 200.0, 'NEEDLE_STOPTIME': 5.0, 'Tx_LOGID': 13, 'Str_LOGID': 13, 'DEVICE_ID': 3, 'RESERVE': '25', 'created_at': '2025-07-18T23:02:17.819238+05:30'}
+[2025-07-18 23:02:19,308] INFO poppys New MachineLog created (JSON Posted): {'id': 68, 'DATE': '2025-07-18', 'START_TIME': '16:15:00', 'END_TIME': '16:40:00', 'operator_name': 'Operator1', 'mode_description': 'No Feeding', 'MACHINE_ID': 3, 'LINE_NUMB': 1, 'OPERATOR_ID': '1', 'MODE': 3, 'STITCH_COUNT': 100, 'NEEDLE_RUNTIME': 200.0, 'NEEDLE_STOPTIME': 5.0, 'Tx_LOGID': 14, 'Str_LOGID': 14, 'DEVICE_ID': 3, 'RESERVE': '25', 'created_at': '2025-07-18T23:02:19.296021+05:30'}
+[2025-07-18 23:02:21,185] ERROR poppys Invalid data: {'DATE': [ErrorDetail(string='Date must be in YYYY:MM:DD format', code='invalid')]}
+[2025-07-18 23:02:21,186] WARNING django.request Bad Request: /api/log/
+[2025-07-18 23:13:46,755] INFO poppys New MachineLog created (JSON Posted): {'id': 69, 'DATE': '2025-07-20', 'START_TIME': '07:00:00', 'END_TIME': '20:00:00', 'operator_name': 'Operator1', 'mode_description': 'Idle', 'MACHINE_ID': 10, 'LINE_NUMB': 1, 'OPERATOR_ID': '1', 'MODE': 2, 'STITCH_COUNT': 0, 'NEEDLE_RUNTIME': 0.0, 'NEEDLE_STOPTIME': 0.0, 'Tx_LOGID': 101, 'Str_LOGID': 101, 'DEVICE_ID': 1, 'RESERVE': '0', 'created_at': '2025-07-18T23:13:46.712869+05:30'}
+[2025-07-18 23:14:23,170] INFO poppys New MachineLog created (JSON Posted): {'id': 70, 'DATE': '2025-07-20', 'START_TIME': '07:00:00', 'END_TIME': '20:00:00', 'operator_name': 'Operator1', 'mode_description': 'Idle', 'MACHINE_ID': 10, 'LINE_NUMB': 1, 'OPERATOR_ID': '1', 'MODE': 2, 'STITCH_COUNT': 0, 'NEEDLE_RUNTIME': 0.0, 'NEEDLE_STOPTIME': 0.0, 'Tx_LOGID': 101, 'Str_LOGID': 101, 'DEVICE_ID': 1, 'RESERVE': '0', 'created_at': '2025-07-18T23:14:23.164595+05:30'}
+[2025-07-18 23:19:51,891] INFO poppys MachineReport GET called with params: <QueryDict: {'machine_id': ['10']}>
+[2025-07-18 23:19:51,892] INFO poppys No date param, using today's date: 2025-07-18
+[2025-07-18 23:19:51,946] INFO poppys Initial logs count for date 2025-07-18: 10
+[2025-07-18 23:19:51,948] INFO poppys Filtered logs by MACHINE_ID=10: 0
+[2025-07-18 23:19:51,951] INFO poppys Date	Machine ID	Total Hours	Sewing	Idle	Rework Hours	No Feeding	Meeting	Maintenance	Needle Break	PT %	NPT %	Needle Runtime %	Sewing Speed	Stitch Count
+[2025-07-18 23:19:51,951] INFO poppys Excluded logs:
+[2025-07-18 23:19:51,953] INFO poppys Full Summary Table:
+[2025-07-18 23:19:51,953] INFO poppys Date	Machine ID	Total Hours	Sewing	Idle	Rework Hours	No Feeding	Meeting	Maintenance	Needle Break	PT %	NPT %	Needle Runtime %	Sewing Speed	Stitch Count
+[2025-07-18 23:20:20,392] INFO poppys New MachineLog created (JSON Posted): {'id': 71, 'DATE': '2025-07-20', 'START_TIME': '07:00:00', 'END_TIME': '20:00:00', 'operator_name': 'Operator1', 'mode_description': 'Idle', 'MACHINE_ID': 1, 'LINE_NUMB': 1, 'OPERATOR_ID': '1', 'MODE': 2, 'STITCH_COUNT': 0, 'NEEDLE_RUNTIME': 0.0, 'NEEDLE_STOPTIME': 0.0, 'Tx_LOGID': 101, 'Str_LOGID': 101, 'DEVICE_ID': 1, 'RESERVE': '0', 'created_at': '2025-07-18T23:20:20.366906+05:30'}
+[2025-07-18 23:20:22,310] INFO poppys New MachineLog created (JSON Posted): {'id': 72, 'DATE': '2025-07-20', 'START_TIME': '08:00:00', 'END_TIME': '09:00:00', 'operator_name': 'Operator2', 'mode_description': 'Sewing', 'MACHINE_ID': 2, 'LINE_NUMB': 1, 'OPERATOR_ID': '2', 'MODE': 1, 'STITCH_COUNT': 100, 'NEEDLE_RUNTIME': 10.0, 'NEEDLE_STOPTIME': 1.0, 'Tx_LOGID': 102, 'Str_LOGID': 102, 'DEVICE_ID': 2, 'RESERVE': '25', 'created_at': '2025-07-18T23:20:22.303006+05:30'}
+[2025-07-18 23:20:24,166] INFO poppys New MachineLog created (JSON Posted): {'id': 73, 'DATE': '2025-07-20', 'START_TIME': '10:32:00', 'END_TIME': '10:38:00', 'operator_name': 'Operator3', 'mode_description': 'Sewing', 'MACHINE_ID': 3, 'LINE_NUMB': 1, 'OPERATOR_ID': '3', 'MODE': 1, 'STITCH_COUNT': 50, 'NEEDLE_RUNTIME': 5.0, 'NEEDLE_STOPTIME': 1.0, 'Tx_LOGID': 103, 'Str_LOGID': 103, 'DEVICE_ID': 3, 'RESERVE': '20', 'created_at': '2025-07-18T23:20:24.158676+05:30'}
+[2025-07-18 23:20:26,047] INFO poppys New MachineLog created (JSON Posted): {'id': 74, 'DATE': '2025-07-20', 'START_TIME': '19:15:00', 'END_TIME': '19:45:00', 'operator_name': None, 'mode_description': 'Idle', 'MACHINE_ID': 4, 'LINE_NUMB': 1, 'OPERATOR_ID': '4', 'MODE': 2, 'STITCH_COUNT': 0, 'NEEDLE_RUNTIME': 0.0, 'NEEDLE_STOPTIME': 0.0, 'Tx_LOGID': 104, 'Str_LOGID': 104, 'DEVICE_ID': 4, 'RESERVE': '0', 'created_at': '2025-07-18T23:20:26.038916+05:30'}
+[2025-07-18 23:20:27,973] INFO poppys New MachineLog created (JSON Posted): {'id': 75, 'DATE': '2025-07-20', 'START_TIME': '09:00:00', 'END_TIME': '10:00:00', 'operator_name': None, 'mode_description': 'Sewing', 'MACHINE_ID': 5, 'LINE_NUMB': 1, 'OPERATOR_ID': '5', 'MODE': 1, 'STITCH_COUNT': 200, 'NEEDLE_RUNTIME': 30.0, 'NEEDLE_STOPTIME': 2.0, 'Tx_LOGID': 105, 'Str_LOGID': 105, 'DEVICE_ID': 5, 'RESERVE': '30', 'created_at': '2025-07-18T23:20:27.969578+05:30'}
+[2025-07-18 23:20:29,327] INFO poppys New MachineLog created (JSON Posted): {'id': 76, 'DATE': '2025-07-20', 'START_TIME': '14:10:00', 'END_TIME': '14:30:00', 'operator_name': None, 'mode_description': 'No Feeding', 'MACHINE_ID': 6, 'LINE_NUMB': 1, 'OPERATOR_ID': '6', 'MODE': 3, 'STITCH_COUNT': 120, 'NEEDLE_RUNTIME': 10.0, 'NEEDLE_STOPTIME': 1.0, 'Tx_LOGID': 106, 'Str_LOGID': 106, 'DEVICE_ID': 6, 'RESERVE': '40', 'created_at': '2025-07-18T23:20:29.320965+05:30'}
+[2025-07-18 23:28:50,643] INFO poppys New MachineLog created (JSON Posted): {'id': 77, 'DATE': '2025-07-20', 'START_TIME': '07:00:00', 'END_TIME': '20:00:00', 'operator_name': 'Operator1', 'mode_description': 'Idle', 'MACHINE_ID': 1, 'LINE_NUMB': 1, 'OPERATOR_ID': '1', 'MODE': 2, 'STITCH_COUNT': 0, 'NEEDLE_RUNTIME': 0.0, 'NEEDLE_STOPTIME': 0.0, 'Tx_LOGID': 101, 'Str_LOGID': 101, 'DEVICE_ID': 1, 'RESERVE': '0', 'created_at': '2025-07-18T23:28:50.633937+05:30'}
+[2025-07-18 23:28:52,653] INFO poppys New MachineLog created (JSON Posted): {'id': 78, 'DATE': '2025-07-20', 'START_TIME': '08:00:00', 'END_TIME': '09:00:00', 'operator_name': 'Operator2', 'mode_description': 'Sewing', 'MACHINE_ID': 2, 'LINE_NUMB': 1, 'OPERATOR_ID': '2', 'MODE': 1, 'STITCH_COUNT': 100, 'NEEDLE_RUNTIME': 10.0, 'NEEDLE_STOPTIME': 1.0, 'Tx_LOGID': 102, 'Str_LOGID': 102, 'DEVICE_ID': 2, 'RESERVE': '25', 'created_at': '2025-07-18T23:28:52.644925+05:30'}
+[2025-07-18 23:28:54,018] INFO poppys New MachineLog created (JSON Posted): {'id': 79, 'DATE': '2025-07-20', 'START_TIME': '10:32:00', 'END_TIME': '10:38:00', 'operator_name': 'Operator3', 'mode_description': 'Sewing', 'MACHINE_ID': 3, 'LINE_NUMB': 1, 'OPERATOR_ID': '3', 'MODE': 1, 'STITCH_COUNT': 50, 'NEEDLE_RUNTIME': 5.0, 'NEEDLE_STOPTIME': 1.0, 'Tx_LOGID': 103, 'Str_LOGID': 103, 'DEVICE_ID': 3, 'RESERVE': '20', 'created_at': '2025-07-18T23:28:54.009855+05:30'}
+[2025-07-18 23:28:55,972] INFO poppys New MachineLog created (JSON Posted): {'id': 80, 'DATE': '2025-07-20', 'START_TIME': '19:15:00', 'END_TIME': '19:45:00', 'operator_name': None, 'mode_description': 'Idle', 'MACHINE_ID': 4, 'LINE_NUMB': 1, 'OPERATOR_ID': '4', 'MODE': 2, 'STITCH_COUNT': 0, 'NEEDLE_RUNTIME': 0.0, 'NEEDLE_STOPTIME': 0.0, 'Tx_LOGID': 104, 'Str_LOGID': 104, 'DEVICE_ID': 4, 'RESERVE': '0', 'created_at': '2025-07-18T23:28:55.968595+05:30'}
+[2025-07-18 23:28:57,416] INFO poppys New MachineLog created (JSON Posted): {'id': 81, 'DATE': '2025-07-20', 'START_TIME': '09:00:00', 'END_TIME': '10:00:00', 'operator_name': None, 'mode_description': 'Sewing', 'MACHINE_ID': 5, 'LINE_NUMB': 1, 'OPERATOR_ID': '5', 'MODE': 1, 'STITCH_COUNT': 200, 'NEEDLE_RUNTIME': 30.0, 'NEEDLE_STOPTIME': 2.0, 'Tx_LOGID': 105, 'Str_LOGID': 105, 'DEVICE_ID': 5, 'RESERVE': '30', 'created_at': '2025-07-18T23:28:57.410589+05:30'}
+[2025-07-18 23:28:58,769] INFO poppys New MachineLog created (JSON Posted): {'id': 82, 'DATE': '2025-07-20', 'START_TIME': '14:10:00', 'END_TIME': '14:30:00', 'operator_name': None, 'mode_description': 'No Feeding', 'MACHINE_ID': 6, 'LINE_NUMB': 1, 'OPERATOR_ID': '6', 'MODE': 3, 'STITCH_COUNT': 120, 'NEEDLE_RUNTIME': 10.0, 'NEEDLE_STOPTIME': 1.0, 'Tx_LOGID': 106, 'Str_LOGID': 106, 'DEVICE_ID': 6, 'RESERVE': '40', 'created_at': '2025-07-18T23:28:58.759173+05:30'}
+[2025-07-18 23:29:00,859] INFO poppys New MachineLog created (JSON Posted): {'id': 83, 'DATE': '2025-07-21', 'START_TIME': '09:00:00', 'END_TIME': '09:30:00', 'operator_name': None, 'mode_description': 'Sewing', 'MACHINE_ID': 7, 'LINE_NUMB': 1, 'OPERATOR_ID': '7', 'MODE': 1, 'STITCH_COUNT': 100, 'NEEDLE_RUNTIME': 15.0, 'NEEDLE_STOPTIME': 2.0, 'Tx_LOGID': 107, 'Str_LOGID': 107, 'DEVICE_ID': 7, 'RESERVE': '30', 'created_at': '2025-07-18T23:29:00.851979+05:30'}
+[2025-07-18 23:29:01,778] INFO poppys New MachineLog created (JSON Posted): {'id': 84, 'DATE': '2025-07-21', 'START_TIME': '10:00:00', 'END_TIME': '10:45:00', 'operator_name': None, 'mode_description': 'Sewing', 'MACHINE_ID': 7, 'LINE_NUMB': 1, 'OPERATOR_ID': '7', 'MODE': 1, 'STITCH_COUNT': 150, 'NEEDLE_RUNTIME': 25.0, 'NEEDLE_STOPTIME': 3.0, 'Tx_LOGID': 108, 'Str_LOGID': 108, 'DEVICE_ID': 7, 'RESERVE': '35', 'created_at': '2025-07-18T23:29:01.762510+05:30'}
+[2025-07-18 23:29:03,657] INFO poppys New MachineLog created (JSON Posted): {'id': 85, 'DATE': '2025-07-21', 'START_TIME': '08:45:00', 'END_TIME': '09:15:00', 'operator_name': None, 'mode_description': 'Sewing', 'MACHINE_ID': 8, 'LINE_NUMB': 1, 'OPERATOR_ID': '8', 'MODE': 1, 'STITCH_COUNT': 120, 'NEEDLE_RUNTIME': 10.0, 'NEEDLE_STOPTIME': 1.0, 'Tx_LOGID': 109, 'Str_LOGID': 109, 'DEVICE_ID': 8, 'RESERVE': '40', 'created_at': '2025-07-18T23:29:03.650595+05:30'}
+[2025-07-18 23:29:04,498] INFO poppys New MachineLog created (JSON Posted): {'id': 86, 'DATE': '2025-07-21', 'START_TIME': '09:20:00', 'END_TIME': '09:40:00', 'operator_name': None, 'mode_description': 'Idle', 'MACHINE_ID': 8, 'LINE_NUMB': 1, 'OPERATOR_ID': '8', 'MODE': 2, 'STITCH_COUNT': 0, 'NEEDLE_RUNTIME': 0.0, 'NEEDLE_STOPTIME': 0.0, 'Tx_LOGID': 110, 'Str_LOGID': 110, 'DEVICE_ID': 8, 'RESERVE': '20', 'created_at': '2025-07-18T23:29:04.491612+05:30'}
+[2025-07-18 23:29:06,468] INFO poppys New MachineLog created (JSON Posted): {'id': 87, 'DATE': '2025-07-21', 'START_TIME': '08:40:00', 'END_TIME': '09:40:00', 'operator_name': None, 'mode_description': 'Sewing', 'MACHINE_ID': 9, 'LINE_NUMB': 1, 'OPERATOR_ID': '9', 'MODE': 1, 'STITCH_COUNT': 200, 'NEEDLE_RUNTIME': 30.0, 'NEEDLE_STOPTIME': 2.0, 'Tx_LOGID': 111, 'Str_LOGID': 111, 'DEVICE_ID': 9, 'RESERVE': '50', 'created_at': '2025-07-18T23:29:06.461899+05:30'}
+[2025-07-18 23:29:07,832] INFO poppys New MachineLog created (JSON Posted): {'id': 88, 'DATE': '2025-07-21', 'START_TIME': '10:00:00', 'END_TIME': '11:00:00', 'operator_name': None, 'mode_description': 'Idle', 'MACHINE_ID': 10, 'LINE_NUMB': 1, 'OPERATOR_ID': '10', 'MODE': 2, 'STITCH_COUNT': 0, 'NEEDLE_RUNTIME': 0.0, 'NEEDLE_STOPTIME': 0.0, 'Tx_LOGID': 112, 'Str_LOGID': 112, 'DEVICE_ID': 10, 'RESERVE': '0', 'created_at': '2025-07-18T23:29:07.825916+05:30'}
+[2025-07-18 23:48:26,741] INFO poppys MachineReport GET called with params: <QueryDict: {'machine_id': ['3']}>
+[2025-07-18 23:48:26,744] INFO poppys No date param, using today's date: 2025-07-18
+[2025-07-18 23:48:26,906] INFO poppys Initial logs count for date 2025-07-18: 10
+[2025-07-18 23:48:26,911] INFO poppys Filtered logs by MACHINE_ID=3: 8
+[2025-07-18 23:48:26,929] INFO poppys DB DATA: MACHINE_ID=3, DATE=2025-07-18, START_TIME=08:15:00, END_TIME=08:45:00, MODE=2, NEEDLE_RUNTIME=200.0, RESERVE=25, STATUS=Fetched
+[2025-07-18 23:48:26,929] INFO poppys DB DATA: MACHINE_ID=3, DATE=2025-07-18, START_TIME=16:15:00, END_TIME=16:40:00, MODE=3, NEEDLE_RUNTIME=200.0, RESERVE=25, STATUS=Fetched
+[2025-07-18 23:48:26,930] INFO poppys DB DATA: MACHINE_ID=3, DATE=2025-07-18, START_TIME=08:15:00, END_TIME=08:45:00, MODE=2, NEEDLE_RUNTIME=200.0, RESERVE=25, STATUS=Fetched
+[2025-07-18 23:48:26,930] INFO poppys DB DATA: MACHINE_ID=3, DATE=2025-07-18, START_TIME=16:15:00, END_TIME=16:40:00, MODE=3, NEEDLE_RUNTIME=200.0, RESERVE=25, STATUS=Fetched
+[2025-07-18 23:48:26,930] INFO poppys DB DATA: MACHINE_ID=3, DATE=2025-07-18, START_TIME=08:15:00, END_TIME=08:45:00, MODE=2, NEEDLE_RUNTIME=200.0, RESERVE=25, STATUS=Fetched
+[2025-07-18 23:48:26,930] INFO poppys DB DATA: MACHINE_ID=3, DATE=2025-07-18, START_TIME=16:15:00, END_TIME=16:40:00, MODE=3, NEEDLE_RUNTIME=200.0, RESERVE=25, STATUS=Fetched
+[2025-07-18 23:48:26,930] INFO poppys DB DATA: MACHINE_ID=3, DATE=2025-07-18, START_TIME=08:15:00, END_TIME=08:45:00, MODE=2, NEEDLE_RUNTIME=200.0, RESERVE=25, STATUS=Fetched
+[2025-07-18 23:48:26,930] INFO poppys DB DATA: MACHINE_ID=3, DATE=2025-07-18, START_TIME=16:15:00, END_TIME=16:40:00, MODE=3, NEEDLE_RUNTIME=200.0, RESERVE=25, STATUS=Fetched
+[2025-07-18 23:48:26,931] INFO poppys Excluded (Outside main window - before): MACHINE_ID=3, TIME=08:15–08:30
+[2025-07-18 23:48:26,931] INFO poppys --- Detailed Time Conversion for MACHINE_ID=3 ---
+[2025-07-18 23:48:26,931] INFO poppys Start Time: 08:30:00, End Time: 08:45:00
+[2025-07-18 23:48:26,931] INFO poppys Raw Duration (seconds): 900.0 seconds
+[2025-07-18 23:48:26,933] INFO poppys Raw Duration (hours): 900.0 / 3600 = 0.25 hours
+[2025-07-18 23:48:26,935] INFO poppys Total Break Overlap (seconds): 0 seconds
+[2025-07-18 23:48:26,935] INFO poppys Total Break Overlap (hours): 0 / 3600 = 0.0 hours
+[2025-07-18 23:48:26,936] INFO poppys Final Duration (hours): 0.25 - 0.0 = 0.25 hours
+[2025-07-18 23:48:26,936] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-18 23:48:26,936] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-18 23:48:26,937] INFO poppys Excluded (Partial Break): MACHINE_ID=3, TIME=16:20–16:30
+[2025-07-18 23:48:26,937] INFO poppys --- Detailed Time Conversion for MACHINE_ID=3 ---
+[2025-07-18 23:48:26,937] INFO poppys Start Time: 16:15:00, End Time: 16:40:00
+[2025-07-18 23:48:26,937] INFO poppys Raw Duration (seconds): 1500.0 seconds
+[2025-07-18 23:48:26,937] INFO poppys Raw Duration (hours): 1500.0 / 3600 = 0.4166666666666667 hours
+[2025-07-18 23:48:26,938] INFO poppys Total Break Overlap (seconds): 600.0 seconds
+[2025-07-18 23:48:26,938] INFO poppys Total Break Overlap (hours): 600.0 / 3600 = 0.16666666666666666 hours
+[2025-07-18 23:48:26,938] INFO poppys Final Duration (hours): 0.4166666666666667 - 0.16666666666666666 = 0.25 hours
+[2025-07-18 23:48:26,938] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-18 23:48:26,938] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-18 23:48:26,938] INFO poppys Excluded (Outside main window - before): MACHINE_ID=3, TIME=08:15–08:30
+[2025-07-18 23:48:26,938] INFO poppys --- Detailed Time Conversion for MACHINE_ID=3 ---
+[2025-07-18 23:48:26,940] INFO poppys Start Time: 08:30:00, End Time: 08:45:00
+[2025-07-18 23:48:26,940] INFO poppys Raw Duration (seconds): 900.0 seconds
+[2025-07-18 23:48:26,940] INFO poppys Raw Duration (hours): 900.0 / 3600 = 0.25 hours
+[2025-07-18 23:48:26,940] INFO poppys Total Break Overlap (seconds): 0 seconds
+[2025-07-18 23:48:26,940] INFO poppys Total Break Overlap (hours): 0 / 3600 = 0.0 hours
+[2025-07-18 23:48:26,940] INFO poppys Final Duration (hours): 0.25 - 0.0 = 0.25 hours
+[2025-07-18 23:48:26,941] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-18 23:48:26,941] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-18 23:48:26,941] INFO poppys Excluded (Partial Break): MACHINE_ID=3, TIME=16:20–16:30
+[2025-07-18 23:48:26,941] INFO poppys --- Detailed Time Conversion for MACHINE_ID=3 ---
+[2025-07-18 23:48:26,941] INFO poppys Start Time: 16:15:00, End Time: 16:40:00
+[2025-07-18 23:48:26,941] INFO poppys Raw Duration (seconds): 1500.0 seconds
+[2025-07-18 23:48:26,941] INFO poppys Raw Duration (hours): 1500.0 / 3600 = 0.4166666666666667 hours
+[2025-07-18 23:48:26,942] INFO poppys Total Break Overlap (seconds): 600.0 seconds
+[2025-07-18 23:48:26,942] INFO poppys Total Break Overlap (hours): 600.0 / 3600 = 0.16666666666666666 hours
+[2025-07-18 23:48:26,942] INFO poppys Final Duration (hours): 0.4166666666666667 - 0.16666666666666666 = 0.25 hours
+[2025-07-18 23:48:26,942] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-18 23:48:26,942] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-18 23:48:26,942] INFO poppys Excluded (Outside main window - before): MACHINE_ID=3, TIME=08:15–08:30
+[2025-07-18 23:48:26,942] INFO poppys --- Detailed Time Conversion for MACHINE_ID=3 ---
+[2025-07-18 23:48:26,942] INFO poppys Start Time: 08:30:00, End Time: 08:45:00
+[2025-07-18 23:48:26,943] INFO poppys Raw Duration (seconds): 900.0 seconds
+[2025-07-18 23:48:26,943] INFO poppys Raw Duration (hours): 900.0 / 3600 = 0.25 hours
+[2025-07-18 23:48:26,943] INFO poppys Total Break Overlap (seconds): 0 seconds
+[2025-07-18 23:48:26,944] INFO poppys Total Break Overlap (hours): 0 / 3600 = 0.0 hours
+[2025-07-18 23:48:26,945] INFO poppys Final Duration (hours): 0.25 - 0.0 = 0.25 hours
+[2025-07-18 23:48:26,945] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-18 23:48:26,945] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-18 23:48:26,945] INFO poppys Excluded (Partial Break): MACHINE_ID=3, TIME=16:20–16:30
+[2025-07-18 23:48:26,945] INFO poppys --- Detailed Time Conversion for MACHINE_ID=3 ---
+[2025-07-18 23:48:26,945] INFO poppys Start Time: 16:15:00, End Time: 16:40:00
+[2025-07-18 23:48:26,946] INFO poppys Raw Duration (seconds): 1500.0 seconds
+[2025-07-18 23:48:26,946] INFO poppys Raw Duration (hours): 1500.0 / 3600 = 0.4166666666666667 hours
+[2025-07-18 23:48:26,946] INFO poppys Total Break Overlap (seconds): 600.0 seconds
+[2025-07-18 23:48:26,946] INFO poppys Total Break Overlap (hours): 600.0 / 3600 = 0.16666666666666666 hours
+[2025-07-18 23:48:26,946] INFO poppys Final Duration (hours): 0.4166666666666667 - 0.16666666666666666 = 0.25 hours
+[2025-07-18 23:48:26,946] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-18 23:48:26,946] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-18 23:48:26,947] INFO poppys Excluded (Outside main window - before): MACHINE_ID=3, TIME=08:15–08:30
+[2025-07-18 23:48:26,947] INFO poppys --- Detailed Time Conversion for MACHINE_ID=3 ---
+[2025-07-18 23:48:26,947] INFO poppys Start Time: 08:30:00, End Time: 08:45:00
+[2025-07-18 23:48:26,947] INFO poppys Raw Duration (seconds): 900.0 seconds
+[2025-07-18 23:48:26,947] INFO poppys Raw Duration (hours): 900.0 / 3600 = 0.25 hours
+[2025-07-18 23:48:26,947] INFO poppys Total Break Overlap (seconds): 0 seconds
+[2025-07-18 23:48:26,947] INFO poppys Total Break Overlap (hours): 0 / 3600 = 0.0 hours
+[2025-07-18 23:48:26,947] INFO poppys Final Duration (hours): 0.25 - 0.0 = 0.25 hours
+[2025-07-18 23:48:26,948] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-18 23:48:26,948] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-18 23:48:26,948] INFO poppys Excluded (Partial Break): MACHINE_ID=3, TIME=16:20–16:30
+[2025-07-18 23:48:26,948] INFO poppys --- Detailed Time Conversion for MACHINE_ID=3 ---
+[2025-07-18 23:48:26,948] INFO poppys Start Time: 16:15:00, End Time: 16:40:00
+[2025-07-18 23:48:26,948] INFO poppys Raw Duration (seconds): 1500.0 seconds
+[2025-07-18 23:48:26,948] INFO poppys Raw Duration (hours): 1500.0 / 3600 = 0.4166666666666667 hours
+[2025-07-18 23:48:26,948] INFO poppys Total Break Overlap (seconds): 600.0 seconds
+[2025-07-18 23:48:26,949] INFO poppys Total Break Overlap (hours): 600.0 / 3600 = 0.16666666666666666 hours
+[2025-07-18 23:48:26,949] INFO poppys Final Duration (hours): 0.4166666666666667 - 0.16666666666666666 = 0.25 hours
+[2025-07-18 23:48:26,951] INFO poppys Explanation: Duration is calculated as (End Time - Start Time) in seconds, then converted to hours by dividing by 3600. Any overlap with break times is subtracted (in seconds, then converted to hours).
+[2025-07-18 23:48:26,953] INFO poppys For example, 10 minutes = 10/60 = 0.166666... hours.
+[2025-07-18 23:48:26,954] INFO poppys --- Summary Conversions for MACHINE_ID=3 ---
+[2025-07-18 23:48:26,954] INFO poppys Total Hours = PT (Sewing) + NPT (sum of Modes 2 to 7)
+[2025-07-18 23:48:26,955] INFO poppys PT (Sewing) = 0 hours
+[2025-07-18 23:48:26,955] INFO poppys NPT (sum of Modes 2 to 7) = 2.0 hours
+[2025-07-18 23:48:26,955] INFO poppys Total Hours = 0 + 2.0 = 2.0 hours
+[2025-07-18 23:48:26,955] INFO poppys PT % = (Sewing / Total Hours) × 100 = (0 / 2.0) × 100 = 0.00%
+[2025-07-18 23:48:26,955] INFO poppys NPT % = (NPT / Total Hours) × 100 = (2.0 / 2.0) × 100 = 100.00%
+[2025-07-18 23:48:26,956] INFO poppys Needle Runtime % = (Total Needle Runtime / Sewing duration) × 100 = (0 / (0 × 3600)) × 100 = 0.00%
+[2025-07-18 23:48:26,956] INFO poppys Sewing Speed = Average of SPM (RESERVE field) for all Modes = 25.00
+[2025-07-18 23:48:26,956] INFO poppys Stitch Count = Sum of STITCH_COUNT across all entries = 0
+[2025-07-18 23:48:26,956] INFO poppys Test Explanation: All durations are in hours. For example, 10 minutes = 10/60 = 0.166666... hours. Percentages are calculated as per the formula above.
+[2025-07-18 23:48:26,956] INFO poppys Calculation for table:
+[2025-07-18 23:48:26,956] INFO poppys Metric	Value	Calculation / Notes
+[2025-07-18 23:48:26,956] INFO poppys Total Hours	02:00	End - Start
+[2025-07-18 23:48:26,957] INFO poppys Sewing (Mode 1)	00:00	Since MODE = 1
+[2025-07-18 23:48:26,957] INFO poppys Idle (Mode 2)	01:00	Since MODE = 2
+[2025-07-18 23:48:26,957] INFO poppys Rework (Mode 6)	00:00	Not present
+[2025-07-18 23:48:26,957] INFO poppys No Feeding (Mode 3)	01:00	Since MODE = 3
+[2025-07-18 23:48:26,957] INFO poppys Meeting (Mode 4)	00:00	Since MODE = 4
+[2025-07-18 23:48:26,957] INFO poppys Maintenance (Mode 5)	00:00	Since MODE = 5
+[2025-07-18 23:48:26,957] INFO poppys Needle Break (Mode 7)	00:00	Not present
+[2025-07-18 23:48:26,957] INFO poppys PT %	0.00 %	(0 / 120) × 100 = 0.00%
+[2025-07-18 23:48:26,958] INFO poppys NPT %	100.00 %	(120 / 120) × 100 = 100.00%
+[2025-07-18 23:48:26,958] INFO poppys Needle Runtime %	0.00 %	(0 / (0 × 3600)) × 100 = 0.00%
+[2025-07-18 23:48:26,958] INFO poppys Sewing Speed (SPM)	25.00	From RESERVE (SPM) directly
+[2025-07-18 23:48:26,958] INFO poppys Stitch Count	0	From STITCH_COUNT field
+[2025-07-18 23:48:26,958] INFO poppys ----
+[2025-07-18 23:48:26,958] INFO poppys Total Hours	00:15	End - Start (08:45 - 08:30)
+[2025-07-18 23:48:26,958] INFO poppys Idle (Mode 2)	00:15	Since MODE = 2
+[2025-07-18 23:48:26,958] INFO poppys SPM (All Modes)	25.00	RESERVE for all modes
+[2025-07-18 23:48:26,959] INFO poppys Total Hours	00:15	End - Start (16:40 - 16:15)
+[2025-07-18 23:48:26,959] INFO poppys No Feeding (Mode 3)	00:15	Since MODE = 3
+[2025-07-18 23:48:26,959] INFO poppys SPM (All Modes)	25.00	RESERVE for all modes
+[2025-07-18 23:48:26,960] INFO poppys Total Hours	00:15	End - Start (08:45 - 08:30)
+[2025-07-18 23:48:26,960] INFO poppys Idle (Mode 2)	00:15	Since MODE = 2
+[2025-07-18 23:48:26,960] INFO poppys SPM (All Modes)	25.00	RESERVE for all modes
+[2025-07-18 23:48:26,961] INFO poppys Total Hours	00:15	End - Start (16:40 - 16:15)
+[2025-07-18 23:48:26,961] INFO poppys No Feeding (Mode 3)	00:15	Since MODE = 3
+[2025-07-18 23:48:26,961] INFO poppys SPM (All Modes)	25.00	RESERVE for all modes
+[2025-07-18 23:48:26,962] INFO poppys Total Hours	00:15	End - Start (08:45 - 08:30)
+[2025-07-18 23:48:26,962] INFO poppys Idle (Mode 2)	00:15	Since MODE = 2
+[2025-07-18 23:48:26,962] INFO poppys SPM (All Modes)	25.00	RESERVE for all modes
+[2025-07-18 23:48:26,962] INFO poppys Total Hours	00:15	End - Start (16:40 - 16:15)
+[2025-07-18 23:48:26,962] INFO poppys No Feeding (Mode 3)	00:15	Since MODE = 3
+[2025-07-18 23:48:26,962] INFO poppys SPM (All Modes)	25.00	RESERVE for all modes
+[2025-07-18 23:48:26,962] INFO poppys Total Hours	00:15	End - Start (08:45 - 08:30)
+[2025-07-18 23:48:26,962] INFO poppys Idle (Mode 2)	00:15	Since MODE = 2
+[2025-07-18 23:48:26,963] INFO poppys SPM (All Modes)	25.00	RESERVE for all modes
+[2025-07-18 23:48:26,963] INFO poppys Total Hours	00:15	End - Start (16:40 - 16:15)
+[2025-07-18 23:48:26,963] INFO poppys No Feeding (Mode 3)	00:15	Since MODE = 3
+[2025-07-18 23:48:26,963] INFO poppys SPM (All Modes)	25.00	RESERVE for all modes
+[2025-07-18 23:48:26,963] INFO poppys Date	Machine ID	Total Hours	Sewing	Idle	Rework Hours	No Feeding	Meeting	Maintenance	Needle Break	PT %	NPT %	Needle Runtime %	Sewing Speed	Stitch Count
+[2025-07-18 23:48:26,963] INFO poppys 2025-07-18	3	02:00	00:00	01:00	00:00	01:00	00:00	00:00	00:00	00:00	02:00	0.00%	25.00	0
+[2025-07-18 23:48:26,963] INFO poppys Excluded logs:
+[2025-07-18 23:48:26,963] INFO poppys {'MACHINE_ID': 3, 'START_TIME': '08:15', 'END_TIME': '08:30', 'REASON': 'Outside main window (before 08:30)', 'Outside Main Window Time Excluded': '00:15', 'Work Time Remaining': '00:15'}
+[2025-07-18 23:48:26,964] INFO poppys {'MACHINE_ID': 3, 'START_TIME': '16:20', 'END_TIME': '16:30', 'REASON': 'Break overlap with 16:20 - 16:30', 'Break Time Excluded': '00:10', 'Work Time Remaining': '00:15'}
+[2025-07-18 23:48:26,964] INFO poppys {'MACHINE_ID': 3, 'START_TIME': '08:15', 'END_TIME': '08:30', 'REASON': 'Outside main window (before 08:30)', 'Outside Main Window Time Excluded': '00:15', 'Work Time Remaining': '00:15'}
+[2025-07-18 23:48:26,965] INFO poppys {'MACHINE_ID': 3, 'START_TIME': '16:20', 'END_TIME': '16:30', 'REASON': 'Break overlap with 16:20 - 16:30', 'Break Time Excluded': '00:10', 'Work Time Remaining': '00:15'}
+[2025-07-18 23:48:26,965] INFO poppys {'MACHINE_ID': 3, 'START_TIME': '08:15', 'END_TIME': '08:30', 'REASON': 'Outside main window (before 08:30)', 'Outside Main Window Time Excluded': '00:15', 'Work Time Remaining': '00:15'}
+[2025-07-18 23:48:26,965] INFO poppys {'MACHINE_ID': 3, 'START_TIME': '16:20', 'END_TIME': '16:30', 'REASON': 'Break overlap with 16:20 - 16:30', 'Break Time Excluded': '00:10', 'Work Time Remaining': '00:15'}
+[2025-07-18 23:48:26,965] INFO poppys {'MACHINE_ID': 3, 'START_TIME': '08:15', 'END_TIME': '08:30', 'REASON': 'Outside main window (before 08:30)', 'Outside Main Window Time Excluded': '00:15', 'Work Time Remaining': '00:15'}
+[2025-07-18 23:48:26,965] INFO poppys {'MACHINE_ID': 3, 'START_TIME': '16:20', 'END_TIME': '16:30', 'REASON': 'Break overlap with 16:20 - 16:30', 'Break Time Excluded': '00:10', 'Work Time Remaining': '00:15'}
+[2025-07-18 23:48:26,966] INFO poppys Full Summary Table:
+[2025-07-18 23:48:26,969] INFO poppys Date	Machine ID	Total Hours	Sewing	Idle	Rework Hours	No Feeding	Meeting	Maintenance	Needle Break	PT %	NPT %	Needle Runtime %	Sewing Speed	Stitch Count
+[2025-07-18 23:48:26,970] INFO poppys 2025-07-18	3	02:00	00:00	01:00	00:00	01:00	00:00	00:00	00:00	00:00	02:00	0.00%	25.00	0
