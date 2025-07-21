@@ -35,7 +35,8 @@
     "react-router-dom": "^6.21.1",
     "react-toastify": "^11.0.2",
     "recharts": "^2.15.4",
-    "sass": "^1.69.7"
+    "sass": "^1.69.7",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
