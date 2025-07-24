@@ -50,6 +50,7 @@ class PoppysMachineLogListView(generics.ListAPIView):
     serializer_class = MachineLogSerializer
 
     def get(self, request, *args, **kwargs):
+        
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
 
@@ -61,14 +62,8 @@ class PoppysMachineLogListView(generics.ListAPIView):
         tx_logid = int(data.get("Tx_LOGID", 0))
         str_logid = int(data.get("Str_LOGID", 0))
         machine_id = data.get("MACHINE_ID")
-        date = data.get("Date")
-
-        # Convert date from 'YYYY:M:D' or 'YYYY:MM:DD' to 'YYYY-MM-DD'
-        if date and ':' in date:
-            parts = date.split(':')
-            if len(parts) == 3:
-                date = f"{int(parts[0]):04d}-{int(parts[1]):02d}-{int(parts[2]):02d}"
-
+        date = data.get("Date")  # Use the raw date string as-is, no conversion
+    
         # Logic for Str_LOGID > 1000
         if str_logid > 1000:
             base_str_logid = str_logid - 1000
@@ -85,7 +80,7 @@ class PoppysMachineLogListView(generics.ListAPIView):
                 return Response({"detail": "Duplicate STR log skipped"}, status=200)
             # Overwrite Str_LOGID in data to save only the subtracted value
             data["Str_LOGID"] = base_str_logid
-
+    
         serializer = self.get_serializer(data=data)
         if serializer.is_valid():
             serializer.save()
@@ -94,9 +89,8 @@ class PoppysMachineLogListView(generics.ListAPIView):
             return Response(serializer.data, status=201)
         print("Invalid data:", serializer.errors)
         logger.error(f"Invalid data: {serializer.errors}")
-
-        return Response(serializer.errors, status=400)
     
+        return Response(serializer.errors, status=400)
 
 
 """ Condition 3 - Allow only Poppys users to access the machine logs """
@@ -106,42 +100,58 @@ class PoppysMachineLogListView(generics.ListAPIView):
 class MachineReport(APIView):    
 
     def get(self, request, *args, **kwargs):
-        date_str = request.query_params.get('date')
-        from_str = request.query_params.get('from')
-        to_str = request.query_params.get('to')
         machine_id_filter = request.query_params.get('machine_id')
 
-        # Parse date range if provided
-        if from_str and to_str:
-            try:
-                from_date = datetime.strptime(from_str, "%Y-%m-%d").date()
-                to_date = datetime.strptime(to_str, "%Y-%m-%d").date()
-            except ValueError:
-                return Response({"error": "Invalid from/to date format. Use YYYY-MM-DD."}, status=400)
-            date_filter = {'DATE__range': (from_date, to_date)}
-            report_dates = [from_date + timedelta(days=i) for i in range((to_date - from_date).days + 1)]
-        elif date_str:
-            try:
-                report_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-            except ValueError:
-                return Response({"error": "Invalid date format. Use YYYY-MM-DD."}, status=400)
-            date_filter = {'DATE': report_date}
-            report_dates = [report_date]
-        else:
-            report_date = datetime.now().date()
-            date_filter = {'DATE': report_date}
-            report_dates = [report_date]
+# Ignore all date filter parameters entirely and fetch all dates unconditionally
+        report_dates = MachineLog.objects.values_list('DATE', flat=True).distinct()
 
-        logs = MachineLog.objects.filter(**date_filter)
-        if machine_id_filter:
-            logs = logs.filter(MACHINE_ID=machine_id_filter)
-        logger.info(f"Initial logs count for date {report_date}: {logs.count()}")
+
         
-        all_summaries = []
+        # --- Add this block at the top of get() ---
+        if request.query_params.get('raw') == 'true':
+            logs = MachineLog.objects.all()
+            raw_data = [
+                {
+                    "MACHINE_ID": log.MACHINE_ID,
+                    "OPERATOR_ID": getattr(log, "OPERATOR_ID", ""),
+                    "DATE": log.DATE,
+                    "START_TIME": log.START_TIME,
+                    "END_TIME": log.END_TIME,
+                    "MODE": log.MODE,
+                    "Created at": getattr(log, "created_at", ""),
+                }
+                for log in logs
+            ]
+            return Response({"raw": raw_data})
+        
+                
+    date_str = request.query_params.get('date')
+    from_str = request.query_params.get('from')
+    to_str = request.query_params.get('to')
+
+    # Convert colon format to dash format for filtering
+    if from_str:
+        from_str = from_str.replace(":", "-")
+    if to_str:
+        to_str = to_str.replace(":", "-")
+    if date_str:
+        date_str = date_str.replace(":", "-")
+
+    if from_str and to_str:
+        report_dates = MachineLog.objects.filter(DATE__gte=from_str, DATE__lte=to_str).values_list('DATE', flat=True).distinct()
+    elif date_str:
+        report_dates = [date_str]
+    else:
+        report_dates = MachineLog.objects.values_list('DATE', flat=True).distinct()
+                
+
+        summary = []
+        excluded_logs = []
+        # Loop over all dates and aggregate
         for report_date in report_dates:
-            logs_for_date = [log for log in logs if log.DATE == report_date]
-    
-    
+            logs = MachineLog.objects.filter(DATE=report_date)
+            if machine_id_filter:
+                logs = logs.filter(MACHINE_ID=machine_id_filter)
     
         # ...rest of code that filters by report_date...
         start_window = time(8, 30)
@@ -157,9 +167,12 @@ class MachineReport(APIView):
         if machine_id_filter:
             logs = logs.filter(MACHINE_ID=machine_id_filter)
             logger.info(f"Filtered logs by MACHINE_ID={machine_id_filter}: {logs.count()}")
+        if date_str:  # Only filter by date if date parameter is provided
+            logs = logs.filter(DATE=report_date)
+            logger.info(f"Filtered logs by DATE={report_date}: {logs.count()}")
 
         # --- Exclude logs that are entirely within break times ---
-        filtered_logs = []
+        """ filtered_logs = []
         for log in logs:
             try:
                 st = log.START_TIME if isinstance(log.START_TIME, time) else datetime.strptime(str(log.START_TIME), "%H:%M:%S").time()
@@ -176,7 +189,9 @@ class MachineReport(APIView):
                     break
             if not omit:
                 filtered_logs.append(log)
-        logs = filtered_logs
+        logs = filtered_logs """
+        
+        logs = list(logs)  # convert to list if needed
 
         report = {}
         excluded_logs = []
@@ -292,8 +307,10 @@ class MachineReport(APIView):
                 continue
 
             machine_id = log.MACHINE_ID
-            if machine_id not in report:
-                report[machine_id] = {
+            
+            report_key = f"{log.DATE}_{machine_id}"  # Group by date AND machine
+            if report_key not in report:
+                report[report_key] = {
                     "Sewing Hours": 0,
                     "No feeding Hours": 0,
                     "Meeting Hours": 0,
@@ -306,7 +323,10 @@ class MachineReport(APIView):
                     "SPM Instances": 0,
                     "Stitch Count": 0,
                 }
-                calculation_logs[machine_id] = []
+                calculation_logs[report_key] = []
+                
+# Update all report[report_key] references to report[report_key]
+# Update all calculation_logs[report_key] references to calculation_logs[report_key]
 
             # Calculation log for each metric
             mode = log.MODE
@@ -317,7 +337,7 @@ class MachineReport(APIView):
 
             # Total Hours
             total_hours = duration
-            calculation_logs[machine_id].append({
+            calculation_logs[report_key].append({
                 "Metric": "Total Hours",
                 "Value": duration_hhmm(duration),
                 "Calculation / Notes": f"End - Start ({et.strftime('%H:%M')} - {st.strftime('%H:%M')})"
@@ -325,87 +345,91 @@ class MachineReport(APIView):
 
             # Mode based calculations
             if mode == 1:
-                report[machine_id]["Sewing Hours"] += duration
-                report[machine_id]["Needle Run Time"] += needle_runtime
+                report[report_key]["Sewing Hours"] += duration
+                report[report_key]["Needle Run Time"] += needle_runtime
                 if duration > 0:
                     spm_value = reserve
-                    report[machine_id]["Total SPM"] += spm_value
-                    report[machine_id]["SPM Instances"] += 1
-                report[machine_id]["Stitch Count"] += stitch_count
-                calculation_logs[machine_id].append({
+                    report[report_key]["Total SPM"] += spm_value
+                    report[report_key]["SPM Instances"] += 1
+                report[report_key]["Stitch Count"] += stitch_count
+                calculation_logs[report_key].append({
                     "Metric": "Sewing (Mode 1)",
                     "Value": duration_hhmm(duration),
                     "Calculation / Notes": "Since MODE = 1"
                 })
-                calculation_logs[machine_id].append({
+                calculation_logs[report_key].append({
                     "Metric": "Needle Runtime",
                     "Value": f"{needle_runtime}",
                     "Calculation / Notes": "From NEEDLE_RUNTIME field"
                 })
-                calculation_logs[machine_id].append({
+                calculation_logs[report_key].append({
                     "Metric": "Sewing Speed (SPM)",
                     "Value": f"{spm_value:.2f}",
                     "Calculation / Notes": "RESERVE / (duration * 60)"
                 })
-                calculation_logs[machine_id].append({
+                calculation_logs[report_key].append({
                     "Metric": "Stitch Count",
                     "Value": f"{stitch_count}",
                     "Calculation / Notes": "From STITCH_COUNT field"
                 })
             elif mode == 2:
-                report[machine_id]["Idle Hours"] += duration
-                calculation_logs[machine_id].append({
+                report[report_key]["Idle Hours"] += duration
+                calculation_logs[report_key].append({
                     "Metric": "Idle (Mode 2)",
                     "Value": duration_hhmm(duration),
                     "Calculation / Notes": "Since MODE = 2"
                 })
             elif mode == 3:
-                report[machine_id]["No feeding Hours"] += duration
-                calculation_logs[machine_id].append({
+                report[report_key]["No feeding Hours"] += duration
+                calculation_logs[report_key].append({
                     "Metric": "No Feeding (Mode 3)",
                     "Value": duration_hhmm(duration),
                     "Calculation / Notes": "Since MODE = 3"
                 })
             elif mode == 4:
-                report[machine_id]["Meeting Hours"] += duration
-                calculation_logs[machine_id].append({
+                report[report_key]["Meeting Hours"] += duration
+                calculation_logs[report_key].append({
                     "Metric": "Meeting (Mode 4)",
                     "Value": duration_hhmm(duration),
                     "Calculation / Notes": "Since MODE = 4"
                 })
             elif mode == 5:
-                report[machine_id]["Maintenance Hours"] += duration
-                calculation_logs[machine_id].append({
+                report[report_key]["Maintenance Hours"] += duration
+                calculation_logs[report_key].append({
                     "Metric": "Maintenance (Mode 5)",
                     "Value": duration_hhmm(duration),
                     "Calculation / Notes": "Since MODE = 5"
                 })
             elif mode == 6:
-                report[machine_id]["Rework Hours"] += duration
-                calculation_logs[machine_id].append({
+                report[report_key]["Rework Hours"] += duration
+                calculation_logs[report_key].append({
                     "Metric": "Rework (Mode 6)",
                     "Value": duration_hhmm(duration),
                     "Calculation / Notes": "Since MODE = 6"
                 })
             elif mode == 7:
-                report[machine_id]["Needle Break"] += duration
-                calculation_logs[machine_id].append({
+                report[report_key]["Needle Break"] += duration
+                calculation_logs[report_key].append({
                     "Metric": "Needle Break (Mode 7)",
                     "Value": duration_hhmm(duration),
                     "Calculation / Notes": "Since MODE = 7"
                 })
             # --- SPM calculation for all modes (no restriction) ---
             spm_value_all = reserve
-            report[machine_id]["Total SPM"] += spm_value_all
-            report[machine_id]["SPM Instances"] += 1
-            calculation_logs[machine_id].append({
+            report[report_key]["Total SPM"] += spm_value_all
+            report[report_key]["SPM Instances"] += 1
+            calculation_logs[report_key].append({
                 "Metric": "SPM (All Modes)",
                 "Value": f"{spm_value_all:.2f}",
                 "Calculation / Notes": "RESERVE for all modes"
             })
 
         summary = []
-        for idx, (machine_id, data) in enumerate(report.items(), 1):
+        for idx, (report_key, data) in enumerate(report.items(), 1):
+            # Extract date and machine_id from the key
+            date_part, machine_id = report_key.split('_', 1)
+            machine_id = int(machine_id)
+            
             PT = data["Sewing Hours"]
             NPT = data["No feeding Hours"] + data["Meeting Hours"] + data["Maintenance Hours"] + data["Idle Hours"] + data.get("Rework Hours", 0) + data.get("Needle Break", 0)
             total_hours = PT + NPT
@@ -440,7 +464,7 @@ class MachineReport(APIView):
             summary.append({
                 "S.no": idx,
                 "Machine ID": machine_id,
-                "Date": str(report_date),
+                "Date": log.DATE.strftime("%Y-%m-%d") if hasattr(log.DATE, "strftime") else str(log.DATE),
                 "Sewing Hours": hours_to_hhmm(data["Sewing Hours"]),
                 "Idle Hours": hours_to_hhmm(data["Idle Hours"]),
                 "Rework Hours": hours_to_hhmm(data.get("Rework Hours", 0)),
@@ -478,7 +502,7 @@ class MachineReport(APIView):
             logger.info(f"Stitch Count\t{stitch_count}\tFrom STITCH_COUNT field")
             logger.info("----")
             # Also log all calculation logs for this machine
-            for calc in calculation_logs[machine_id]:
+            for calc in calculation_logs[report_key]:
                 logger.info(f"{calc['Metric']}\t{calc['Value']}\t{calc['Calculation / Notes']}")
 
         # Print summary in the requested format for each machine
@@ -553,7 +577,7 @@ class MachineReport(APIView):
                 f"{stitch_count}"
             )
 
-        return Response({
-             "summary": all_summaries,
-            "excluded_logs": excluded_logs
-        })
+    return Response({
+        "summary": summary,
+                "excluded_logs": excluded_logs
+            })

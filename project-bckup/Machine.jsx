@@ -1,0 +1,535 @@
+import React, { useState, useEffect } from "react";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { FaSearch } from "react-icons/fa";
+import { SiMicrosoftexcel } from "react-icons/si";
+import { FaCalendarAlt } from "react-icons/fa";
+import { FaDownload } from "react-icons/fa";
+import '../../assets/css/style.css'; // Import your CSS styles
+import axios from "axios";
+import * as XLSX from "xlsx";
+
+const tableHeaders = [
+  "S.No",
+  "Machine ID",
+  "Date",
+  "Total Hours",
+  "Sewing",
+  "Idle",
+  "Rework",
+  "No Feeding",
+  "Meeting",
+  "Maintenance",
+  "Needle Break",
+  "PT %",
+  "NPT %",
+  "Needle Runtime %",
+  "Sewing Speed",
+  "Stitch Count",
+];
+
+const handleExcel = () => {
+  const wsData = [
+    tableHeaders,
+    ...filtered.map((row, idx) => [
+      idx + 1,
+      row.machineId,
+      row.date,
+      row.totalHours,
+      row.sewing,
+      row.idle,
+      row.rework,
+      row.noFeeding,
+      row.meeting,
+      row.maintenance,
+      row.needleBreak,
+      row.pt + " %",
+      row.npt + " %",
+      row.needleRuntime + " %",
+      row.sewingSpeed,
+      row.stitchCount,
+    ])
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Report");
+  XLSX.writeFile(wb, "machine_report.xlsx");
+};
+
+const pieColors = [
+  "#3182ce",
+  "#d69e2e",
+  "#e53e3e",
+  "#805ad5",
+  "#718096",
+  "#63b3ed",
+];
+
+function getPieData(row) {
+  return [
+    { name: "Sewing", value: row.sewing ?? 0 },
+    { name: "Idle", value: row.idle ?? 0 },
+    { name: "Rework", value: row.rework ?? 0 },
+    { name: "No Feeding", value: row.noFeeding ?? 0 },
+    { name: "Meeting", value: row.meeting ?? 0 },
+    { name: "Maintenance", value: row.maintenance ?? 0 },
+    { name: "Needle Break", value: row.needleBreak ?? 0 },
+  ];
+}
+
+
+
+export default function Machine() {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [search, setSearch] = useState("");
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [machineId, setMachineId] = useState("");
+  const [machineOptions, setMachineOptions] = useState([]);
+  const rowsPerPage = 10;
+  const [filtersActive, setFiltersActive] = useState(false);
+
+  /* Helper function */
+function formatBackendDate(dateStr) {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-");
+  return `${year}:${month.padStart(2, "0")}:${day.padStart(2, "0")}`;
+}
+
+  // Dynamically fetch machine IDs for dropdown
+   useEffect(() => {
+    axios
+      .get("http://localhost:8000/api/poppys-machine-logs/")
+      .then(res => {
+        const ids = (res.data.summary || []).map(row => row["Machine ID"]);
+        setMachineOptions([...new Set(ids)]);
+      })
+      .catch(() => setMachineOptions([]));
+  }, [from, to, machineId]);
+
+  // Fetch data from backend
+ const fetchData = async () => {
+  setLoading(true);
+  try {
+    const params = {};
+
+    if (from) params.from = formatBackendDate(from); // Always use colons
+    if (to) params.to = formatBackendDate(to);       // Always use colons
+    if (machineId) params.machine_id = machineId;
+
+    const res = await axios.get("http://localhost:8000/api/poppys-machine-logs/", { params });
+    const backendRows = res.data.summary || [];
+
+    const mappedRows = backendRows
+      .map((row, idx) => {
+        let rawDate = row["Date"] || row["DATE"] || row["date"] || "";
+        return {
+          sNo: row["S.no"] ?? idx + 1,
+          machineId: row["Machine ID"] ?? row["machine_id"] ?? "",
+          date: rawDate,
+          totalHours: row["Total Hours"] ?? 0,
+          sewing: row["Sewing Hours"] ?? 0,
+          idle: row["Idle Hours"] ?? 0,
+          rework: row["Rework Hours"] ?? 0,
+          noFeeding: row["No feeding Hours"] ?? 0,
+          meeting: row["Meeting Hours"] ?? 0,
+          maintenance: row["Maintenance Hours"] ?? 0,
+          needleBreak: row["Needle Break"] ?? 0,
+          pt: row["PT %"] ?? 0,
+          npt: row["NPT %"] ?? 0,
+          needleRuntime: row["Needle Time %"] ?? 0,
+          sewingSpeed: row["SPM"] ?? 0,
+          stitchCount: row["Stitch Count"] ?? 0,
+        };
+      })
+      .sort((a, b) => {
+        // Convert YYYY:MM:DD to YYYY-MM-DD for sorting
+        const aDate = a.date.replace(/:/g, ":");
+        const bDate = b.date.replace(/:/g, ":");
+        return new Date(aDate) - new Date(bDate);
+      });
+    
+    setData(mappedRows);
+      } catch (err) {
+    setData([]);
+  }
+  setLoading(false);
+};
+
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line
+  }, []);
+
+  // Filter by search, from, to
+const filtered = data;
+
+
+  // const filtered = data; // Use the fetched data directly for now
+  const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+  const paginated = filtered.slice(
+    (page - 1) * rowsPerPage,
+    page * rowsPerPage
+  );
+
+  const pieRow = filtered[0] || {};
+
+  const tileData = [
+    {
+      label: "Total Hours",
+      value: pieRow.totalHours ?? 0,
+      bg: "tile-bg-blue",
+      color: "tile-color-blue",
+    },
+    {
+      label: "Sewing",
+      value: pieRow.sewing ?? 0,
+      bg: "tile-bg-green",
+      color: "tile-color-green",
+    },
+    { label: "Idle", value: pieRow.idle ?? 0, bg: "tile-bg-orange", color: "tile-color-orange" },
+    {
+      label: "Rework",
+      value: pieRow.rework ?? 0,
+      bg: "tile-bg-pink",
+      color: "tile-color-pink",
+    },
+  ];
+
+    const handleReset = () => {
+    setFrom("");
+    setTo("");
+    setSearch("");
+    setPage(1);
+    setMachineId("");
+    setFiltersActive(false);
+    fetchData();
+  };
+
+ const handleCSV = () => {
+  const csv = [
+    tableHeaders.join(","),
+    ...filtered.map((row, idx) =>
+      [
+        idx + 1,
+        row.machineId,
+        row.date,
+        row.totalHours,
+        row.sewing,
+        row.idle,
+        row.rework,
+        row.noFeeding,
+        row.meeting,
+        row.maintenance,
+        row.needleBreak,
+        row.pt,
+        row.npt,
+        row.needleRuntime,
+        row.sewingSpeed,
+        row.stitchCount,
+      ].join(",")
+    ),
+  ].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "machine_report.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+
+ const handleHTML = () => {
+  const html = `
+    <table border="1">
+      <thead>
+        <tr>${tableHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>
+      </thead>
+      <tbody>
+        ${filtered
+          .map(
+            (row, idx) => `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${row.machineId}</td>
+            <td>${row.date}</td>
+            <td>${row.totalHours}</td>
+            <td>${row.sewing}</td>
+            <td>${row.idle}</td>
+            <td>${row.rework}</td>
+            <td>${row.noFeeding}</td>
+            <td>${row.meeting}</td>
+            <td>${row.maintenance}</td>
+            <td>${row.needleBreak}</td>
+            <td>${row.pt}</td>
+            <td>${row.npt}</td>
+            <td>${row.needleRuntime}</td>
+            <td>${row.sewingSpeed}</td>
+            <td>${row.stitchCount}</td>
+          </tr>
+        `
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "machine_report.html";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+  const handleRawData = () => {
+    // Implement raw data view logic here
+  };
+
+  const handleSummary = () => {
+    // Implement summary view logic here
+  };
+
+  const Pagination = () => (
+    <div className="machine-pagination">
+      <button
+        onClick={() => setPage((p) => Math.max(1, p - 1))}
+        disabled={page === 1}
+        className="machine-btn machine-btn-blue"
+      >
+        Prev
+      </button>
+      <span className="machine-pagination-label">
+        Page {page} of {pageCount}
+      </span>
+      <button
+        onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+        disabled={page === pageCount}
+        className="machine-btn machine-btn-blue"
+      >
+        Next
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="machine-root">
+      {/* Title and Buttons Row */}
+      <div className="machine-title-row">
+        <div className="machine-title">
+          Machine Report Table
+        </div>
+        <div className="machine-title-btns">
+          <button
+            type="button"
+            className="machine-btn machine-btn-csv"
+            onClick={handleCSV}
+          >
+            <SiMicrosoftexcel className="machine-btn-icon" /> CSV
+          </button>
+          <button
+            type="button"
+            className="machine-btn machine-btn-html"
+            onClick={handleHTML}
+          >
+            <FaDownload className="machine-btn-icon" />
+            HTML
+          </button>
+          <button
+            type="button"
+            className="machine-btn machine-btn-raw"
+            onClick={handleRawData}
+          >
+            <FaDownload className="machine-btn-icon" />
+            View Raw Data
+          </button>
+        </div>
+      </div>
+
+      {/* Table Card */}
+      <div className="machine-table-card">
+        {/* Filters and Actions inside table card */}
+        <div className="machine-header-actions" style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 25, alignItems: "center", flexWrap: "wrap" }}>
+            <div className="date-input-group" style={{ display: "flex", gap: 8 }}>
+              <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span><FaCalendarAlt className="calendar-icon" /></span>
+                <input
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className="date-input"
+                  style={{ width: 110 }}
+                />
+                <span className="date-label" style={{ fontSize: 12 }}>From</span>
+              </div>
+              <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span><FaCalendarAlt className="calendar-icon" /></span>
+                <input
+                  type="date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  className="date-input"
+                  style={{ width: 110 }}
+                />
+                <span className="date-label" style={{ fontSize: 12 }}>To</span>
+              </div>
+            </div>
+            <select
+              value={machineId}
+              onChange={(e) => setMachineId(e.target.value)}
+              className="machine-select"
+              style={{ minWidth: 120, height: 42, fontSize: 14 }}
+            >
+              <option value="">Select Machine ID</option>
+              {machineOptions.map((id) => (
+                <option key={id} value={id}>{id}</option>
+              ))}
+            </select>
+            
+            <button
+              type="button"
+              className="machine-btn machine-btn-blue machine-btn-generate"
+              onClick={() => {
+                setPage(1);
+                setFiltersActive(true); // <-- add this
+                fetchData();
+              }}  >
+    Generate
+  </button>
+
+            <button
+              type="button"
+              className="machine-btn machine-btn-red machine-btn-reset"
+              onClick={handleReset}
+              style={{ height: 32, fontSize: 14, padding: "0 16px" }}
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+
+          <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
+  <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
+    <thead>
+      <tr>
+        {tableHeaders.map((h) => (
+          <th
+            key={h}
+            style={{
+              whiteSpace: "nowrap",
+              padding: "8px 12px",
+              textAlign: "center",
+              border: "1px solid #e2e8f0",
+              background: "#d3edff",
+              fontWeight: 600,
+              fontSize: "15px",
+              minWidth: "110px",
+               color: "#000",
+            }}
+          >
+            {h}
+          </th>
+        ))}
+      </tr>
+            </thead>
+           <tbody>
+  {paginated.length === 0 ? (
+    <tr>
+      <td
+        colSpan={tableHeaders.length}
+        className="machine-table-nodata"
+      >
+        No data found.
+      </td>
+    </tr>
+  ) : (
+    paginated.map((row, idx) => (
+      <tr key={idx}>
+        <td>{row.sNo}</td>
+        <td>{row.machineId}</td>
+        <td>{row.date}</td>
+        <td>{row.totalHours}</td>
+        <td>{row.sewing}</td>
+        <td>{row.idle}</td>
+        <td>{row.rework}</td>
+        <td>{row.noFeeding}</td>
+        <td>{row.meeting}</td>
+        <td>{row.maintenance}</td>
+        <td>{row.needleBreak}</td>
+        <td>{row.pt + " %"}</td>
+        <td>{row.npt + " %"}</td>
+        <td>{row.needleRuntime + " %"}</td>
+        <td>{row.sewingSpeed}</td>
+        <td>{row.stitchCount}</td>
+      </tr>
+    ))
+  )}
+</tbody>
+          </table>
+        </div>
+        <Pagination />
+      </div>
+
+      {/* Tiles Row - End to End */}
+      <div className="machine-tiles-row machine-tiles-row-full">
+        {tileData.map((tile, idx) => (
+          <div
+            className={`machine-tile machine-tile-shade ${tile.bg} ${tile.color}`}
+            key={tile.label}
+          >
+            <div className="machine-tile-label">{tile.label}</div>
+            <div className="machine-tile-value">{tile.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Pie Chart Card - Full width */}
+      <div className="machine-pie-card machine-pie-card-full">
+        <div className="machine-pie-chart machine-pie-chart-large">
+          <ResponsiveContainer width="100%" height={380}>
+            <PieChart>
+              <Pie
+                data={getPieData(pieRow)}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={170}
+                innerRadius={100}
+                labelLine={false}
+                label={({ name }) => name}
+              >
+                {getPieData(pieRow).map((_, i) => (
+                  <Cell key={i} fill={pieColors[i % pieColors.length]} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="machine-pie-info">
+          {getPieData(pieRow).map((item, idx) => (
+            <div className="machine-pie-label" key={item.name}>
+              <span
+                className="machine-pie-dot"
+                style={{
+                  background: pieColors[idx % pieColors.length],
+                }}
+              ></span>
+              <span className="machine-pie-name">
+                {item.name}:
+              </span>
+              <span className="machine-pie-value">
+                {item.value} hrs
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+        

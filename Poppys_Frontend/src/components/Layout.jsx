@@ -6,13 +6,14 @@ import { BsBarChartLine } from "react-icons/bs";
 import { Link, Outlet } from "react-router-dom";
 import headerBg from "../../assets/images/9.jpg"; // Import image
 
+/* Sidebar - Menu panel */
 const menuItems = [
   { label: "Dashboard", icon: <MdDashboard />, path: "/dashboard" },
   { label: "Machine Report", icon: <GiSewingMachine />, path: "/machine" },
-  { label: "Line Report", icon: <FaIndustry /> },
-  { label: "Operator Report", icon: <FaUserCog /> },
-  { label: "Consolidated Report", icon: <BsBarChartLine /> },
-  { label: "Settings", icon: <MdSettings /> }
+  { label: "Operator Report", icon: <FaUserCog />, path: "/operator" },
+  { label: "Line Report", icon: <FaIndustry />, path: "/line" },
+  { label: "Consolidated Report", icon: <BsBarChartLine />, path: "/consolidated" },
+  { label: "Settings", icon: <MdSettings />, path: "/settings" }
 ];
 
 const HEADER_HEIGHT = 56; // px
@@ -107,12 +108,24 @@ export default function Layout({ children }) {
               {minimized ? "»" : "«"}
             </button>
           </div>
-          <nav style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+         
+          {/* --- WRAPPING MENU NAVIGATION --- */}
+          <nav
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              flexWrap: "wrap", // allow wrapping on desktop
+              maxHeight: "100vh",
+              overflowY: "auto"
+            }}
+          >
             {menuItems.map(item =>
               item.path ? (
                 <Link
                   key={item.label}
                   to={item.path}
+                  className="menu-link" // <-- for responsive CSS
                   style={{
                     padding: minimized ? "0.9rem 0" : "0.9rem 1.5rem",
                     color: "#5a5a5a",
@@ -159,6 +172,7 @@ export default function Layout({ children }) {
                 <a
                   key={item.label}
                   href="#"
+                  className="menu-link" // <-- for responsive CSS
                   style={{
                     padding: minimized ? "0.9rem 0" : "0.9rem 1.5rem",
                     color: "#5a5a5a",
@@ -204,6 +218,8 @@ export default function Layout({ children }) {
               )
             )}
           </nav>
+          {/* --- END WRAPPING MENU NAVIGATION --- */}
+
         </aside>
 
         {/* Main Content */}
@@ -242,7 +258,7 @@ export default function Layout({ children }) {
         &copy; {new Date().getFullYear()} Pinesphere. All rights reserved.
       </footer>
 
-      {/* Responsive styles */}
+      {/* Responsive styles for menu wrapping */}
       <style>
         {`
           @media (max-width: 900px) {
@@ -269,17 +285,24 @@ export default function Layout({ children }) {
             }
             nav {
               flex-direction: row !important;
-              justify-content: space-around !important;
+              flex-wrap: wrap !important;
+              justify-content: flex-start !important;
+              align-items: flex-start !important;
+            }
+            a.menu-link, .menu-link {
+              min-width: 120px !important;
+              max-width: 45vw !important;
+              margin: 2px 2px !important;
+              display: flex !important;
+              flex: 1 1 120px !important;
             }
             main {
               padding: 0.5rem !important;
             }
-            a {
-              max-width: 90vw !important;
-            }
           }
         `}
       </style>
-   </div>
+            {/* End Responsive styles for menu wrapping */}
+    </div>
   );
 }
