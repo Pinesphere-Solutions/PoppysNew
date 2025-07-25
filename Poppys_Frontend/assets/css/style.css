@@ -347,7 +347,7 @@ body, html {
             width: 50%;
             min-width: 320px;
             height: 380px;
-            max-width: 600px;
+            max-width: 325px;
           }
           .machine-pie-info {
             flex: 1;
@@ -581,4 +581,53 @@ body, html {
   font-weight: 600;
   margin-left: 8px;
 }
+.machine-tiles-row,
+.machine-tiles-row-full {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 32px; /* adjust as needed */
+}
+/* ...existing code... */
+.machine-pie-card,
+.machine-pie-card-full {
+  display: flex;
+  flex-direction: row; /* Ensure row by default */
+  align-items: center;
+  gap: 2.5rem;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(49,130,206,0.08);
+  padding: 2rem 2.5rem;
+  margin: 0;
+  max-width: 100%;
+  min-width: 320px;
+  width: 100%;
+}
+.machine-pie-chart-large {
+  width: 420px !important;   /* Increase width */
+  min-width: 320px !important;
+  height: 380px !important;
+  max-width: 600px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* ...existing code... */
+@media (max-width: 900px) {
+  .machine-pie-card,
+  .machine-pie-card-full {
+    flex-direction: column !important;
+    align-items: stretch;
+    gap: 1.2rem;
+  }
+  .machine-pie-chart,
+  .machine-pie-chart-large {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 220px !important;
+    max-width: 100% !important;
+  }
+}
+/* ...existing code... */
 /* End - Machine Report Styles */

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { FaSearch } from "react-icons/fa";
 import { SiMicrosoftexcel } from "react-icons/si";
 import { FaCalendarAlt } from "react-icons/fa";
@@ -27,34 +27,6 @@ const tableHeaders = [
   "Stitch Count",
 ];
 
-const handleExcel = () => {
-  const wsData = [
-    tableHeaders,
-    ...filtered.map((row, idx) => [
-      idx + 1,
-      row.machineId,
-      row.date,
-      row.totalHours,
-      row.sewing,
-      row.idle,
-      row.rework,
-      row.noFeeding,
-      row.meeting,
-      row.maintenance,
-      row.needleBreak,
-      row.pt + " %",
-      row.npt + " %",
-      row.needleRuntime + " %",
-      row.sewingSpeed,
-      row.stitchCount,
-    ])
-  ];
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Report");
-  XLSX.writeFile(wb, "machine_report.xlsx");
-};
-
 const pieColors = [
   "#3182ce",
   "#d69e2e",
@@ -76,7 +48,20 @@ function getPieData(row) {
   ];
 }
 
+function formatHoursMins(decimalHours) {
+  if (!decimalHours) return "0h 0m";
+  const totalMins = Math.round(Number(decimalHours) * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${h}h ${m}m`;
+}
 
+// Add this helper function to convert HH:MM to decimal hours for pie chart
+function convertHHMMToDecimal(timeStr) {
+  if (!timeStr || timeStr === "00:00") return 0;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours + (minutes / 60);
+}
 
 export default function Machine() {
   const [from, setFrom] = useState("");
@@ -91,14 +76,14 @@ export default function Machine() {
   const [filtersActive, setFiltersActive] = useState(false);
 
   /* Helper function */
-function formatBackendDate(dateStr) {
-  if (!dateStr) return "";
-  const [year, month, day] = dateStr.split("-");
-  return `${year}:${month.padStart(2, "0")}:${day.padStart(2, "0")}`;
-}
+  function formatBackendDate(dateStr) {
+    if (!dateStr) return "";
+    const [year, month, day] = dateStr.split("-");
+    return `${year}:${month.padStart(2, "0")}:${day.padStart(2, "0")}`;
+  }
 
   // Dynamically fetch machine IDs for dropdown
-   useEffect(() => {
+  useEffect(() => {
     axios
       .get("http://localhost:8000/api/poppys-machine-logs/")
       .then(res => {
@@ -109,67 +94,74 @@ function formatBackendDate(dateStr) {
   }, [from, to, machineId]);
 
   // Fetch data from backend
- const fetchData = async () => {
-  setLoading(true);
-  try {
-    const params = {};
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const params = {};
 
-    if (from) params.from = formatBackendDate(from); // Always use colons
-    if (to) params.to = formatBackendDate(to);       // Always use colons
-    if (machineId) params.machine_id = machineId;
+      if (from) params.from = formatBackendDate(from); // Always use colons
+      if (to) params.to = formatBackendDate(to);       // Always use colons
+      if (machineId) params.machine_id = machineId;
 
-    const res = await axios.get("http://localhost:8000/api/poppys-machine-logs/", { params });
-    const backendRows = res.data.summary || [];
+      const res = await axios.get("http://localhost:8000/api/poppys-machine-logs/", { params });
+      const backendRows = res.data.summary || [];
 
-     // ✅ Store Tile 1 - productivity data for tiles
-    const tile1Data = res.data.tile1_productivity || {};
-    const tile2Data = res.data.tile2_needle_runtime || {};
-    const tile3Data = res.data.tile3_sewing_speed || {};
-    const tile4Data = res.data.tile4_total_hours || {};  // ✅ Add Tile 4 data
+      // ✅ Store Tile 1 - productivity data for tiles
+      const tile1Data = res.data.tile1_productivity || {};
+      const tile2Data = res.data.tile2_needle_runtime || {};
+      const tile3Data = res.data.tile3_sewing_speed || {};
+      const tile4Data = res.data.tile4_total_hours || {};  // ✅ Add Tile 4 data
 
+      const mappedRows = backendRows
+  .map((row, idx) => {
+    let rawDate = row["Date"] || row["DATE"] || row["date"] || "";
+    return {
+      sNo: row["S.no"] ?? idx + 1,
+      machineId: row["Machine ID"] ?? row["machine_id"] ?? "",
+      date: rawDate,
+      // Keep original HH:MM format for table display
+      totalHours: row["Total Hours"] || "00:00",
+      sewing: row["Sewing Hours"] || "00:00",
+      idle: row["Idle Hours"] || "00:00",
+      rework: row["Rework Hours"] || "00:00",
+      noFeeding: row["No feeding Hours"] || "00:00",
+      meeting: row["Meeting Hours"] || "00:00",
+      maintenance: row["Maintenance Hours"] || "00:00",
+      needleBreak: row["Needle Break"] || "00:00",
+      // Add decimal versions for pie chart calculations
+      totalHoursDecimal: convertHHMMToDecimal(row["Total Hours"]) || 0,
+      sewingDecimal: convertHHMMToDecimal(row["Sewing Hours"]) || 0,
+      idleDecimal: convertHHMMToDecimal(row["Idle Hours"]) || 0,
+      reworkDecimal: convertHHMMToDecimal(row["Rework Hours"]) || 0,
+      noFeedingDecimal: convertHHMMToDecimal(row["No feeding Hours"]) || 0,
+      meetingDecimal: convertHHMMToDecimal(row["Meeting Hours"]) || 0,
+      maintenanceDecimal: convertHHMMToDecimal(row["Maintenance Hours"]) || 0,
+      needleBreakDecimal: convertHHMMToDecimal(row["Needle Break"]) || 0,
+      pt: row["PT %"] ?? 0,
+      npt: row["NPT %"] ?? 0,
+      needleRuntime: row["Needle Time %"] ?? 0,
+      sewingSpeed: row["SPM"] ?? 0,
+      stitchCount: row["Stitch Count"] ?? 0,
+      // ✅ Add tile1_productivity data to be accessible in component
+      tile1_productivity: tile1Data, //Productive Time %
+      tile2_needle_runtime: tile2Data, // Needle Runtime %
+      tile3_sewing_speed: tile3Data, // Sewing Speed
+      tile4_total_hours: tile4Data, // Total Hours
+    };
+  })
+        .sort((a, b) => {
+          // Convert YYYY:MM:DD to YYYY-MM-DD for sorting
+          const aDate = a.date.replace(/:/g, ":");
+          const bDate = b.date.replace(/:/g, ":");
+          return new Date(aDate) - new Date(bDate);
+        });
 
-
-    const mappedRows = backendRows
-      .map((row, idx) => {
-        let rawDate = row["Date"] || row["DATE"] || row["date"] || "";
-        return {
-          sNo: row["S.no"] ?? idx + 1,
-          machineId: row["Machine ID"] ?? row["machine_id"] ?? "",
-          date: rawDate,
-          totalHours: row["Total Hours"] ?? 0,
-          sewing: row["Sewing Hours"] ?? 0,
-          idle: row["Idle Hours"] ?? 0,
-          rework: row["Rework Hours"] ?? 0,
-          noFeeding: row["No feeding Hours"] ?? 0,
-          meeting: row["Meeting Hours"] ?? 0,
-          maintenance: row["Maintenance Hours"] ?? 0,
-          needleBreak: row["Needle Break"] ?? 0,
-          pt: row["PT %"] ?? 0,
-          npt: row["NPT %"] ?? 0,
-          needleRuntime: row["Needle Time %"] ?? 0,
-          sewingSpeed: row["SPM"] ?? 0,
-          stitchCount: row["Stitch Count"] ?? 0,
-          // ✅ Add tile1_productivity data to be accessible in component
-          tile1_productivity: tile1Data, //Productive Time %
-          tile2_needle_runtime: tile2Data, // Needle Runtime %
-          tile3_sewing_speed: tile3Data, // Sewing Speed
-           tile4_total_hours: tile4Data, // Total Hours
-        };
-      })
-      .sort((a, b) => {
-        // Convert YYYY:MM:DD to YYYY-MM-DD for sorting
-        const aDate = a.date.replace(/:/g, ":");
-        const bDate = b.date.replace(/:/g, ":");
-        return new Date(aDate) - new Date(bDate);
-      });
-    
-    setData(mappedRows);
-      } catch (err) {
-    setData([]);
-  }
-  setLoading(false);
-};
-
+      setData(mappedRows);
+    } catch (err) {
+      setData([]);
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
     fetchData();
@@ -177,8 +169,7 @@ function formatBackendDate(dateStr) {
   }, []);
 
   // Filter by search, from, to
-const filtered = data;
-
+  const filtered = data;
 
   // const filtered = data; // Use the fetched data directly for now
   const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
@@ -189,14 +180,28 @@ const filtered = data;
 
   const pieRow = filtered[0] || {};
 
+  // Sum all rows for each hour type
+// Sum all rows for each hour type - use decimal versions for calculations
+const sumByKey = (key) =>
+  filtered.reduce((sum, row) => sum + (parseFloat(row[key]) || 0), 0);
+
+const totalHoursSum = sumByKey("totalHoursDecimal");
+const sewingSum = sumByKey("sewingDecimal");
+const idleSum = sumByKey("idleDecimal");
+const reworkSum = sumByKey("reworkDecimal");
+const noFeedingSum = sumByKey("noFeedingDecimal");
+const meetingSum = sumByKey("meetingDecimal");
+const maintenanceSum = sumByKey("maintenanceDecimal");
+const needleBreakSum = sumByKey("needleBreakDecimal");
+
+  
+  
+
   // ✅ Get tile1_productivity data from the first row (all rows have same tile data)
   const tile1ProductivityData = pieRow.tile1_productivity || {};
   const tile2NeedleRuntimeData = pieRow.tile2_needle_runtime || {};
   const tile3SewingSpeedData = pieRow.tile3_sewing_speed || {};
   const tile4TotalHoursData = pieRow.tile4_total_hours || {};  // ✅ Add Tile 4 data
-
-
-
 
   const tileData = [
     {
@@ -212,9 +217,9 @@ const filtered = data;
       color: "tile-color-green",
     },
     { label: "Sewing Speed", value: tile3SewingSpeedData.average_sewing_speed_decimal || 0,  // ✅ Use Tile 3 data (no % sign),
-       bg: "tile-bg-orange", 
-       color: "tile-color-orange" 
-      },
+      bg: "tile-bg-orange", 
+      color: "tile-color-orange" 
+    },
     {
       label: "Total Hours",
       value: tile4TotalHoursData.total_hours_sum || "00:00",  // ✅ Use Tile 4 data in HH:MM format
@@ -223,7 +228,7 @@ const filtered = data;
     },
   ];
 
-    const handleReset = () => {
+  const handleReset = () => {
     setFrom("");
     setTo("");
     setSearch("");
@@ -233,11 +238,43 @@ const filtered = data;
     fetchData();
   };
 
- const handleCSV = () => {
-  const csv = [
-    tableHeaders.join(","),
-    ...filtered.map((row, idx) =>
-      [
+  const handleCSV = () => {
+    const csv = [
+      tableHeaders.join(","),
+      ...filtered.map((row, idx) =>
+        [
+          idx + 1,
+          row.machineId,
+          row.date,
+          row.totalHours,
+          row.sewing,
+          row.idle,
+          row.rework,
+          row.noFeeding,
+          row.meeting,
+          row.maintenance,
+          row.needleBreak,
+          row.pt,
+          row.npt,
+          row.needleRuntime,
+          row.sewingSpeed,
+          row.stitchCount,
+        ].join(",")
+      ),
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "machine_report.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExcel = () => {
+    const wsData = [
+      tableHeaders,
+      ...filtered.map((row, idx) => [
         idx + 1,
         row.machineId,
         row.date,
@@ -249,66 +286,61 @@ const filtered = data;
         row.meeting,
         row.maintenance,
         row.needleBreak,
-        row.pt,
-        row.npt,
-        row.needleRuntime,
+        row.pt + " %",
+        row.npt + " %",
+        row.needleRuntime + " %",
         row.sewingSpeed,
         row.stitchCount,
-      ].join(",")
-    ),
-  ].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "machine_report.csv";
-  a.click();
-  URL.revokeObjectURL(url);
-};
+      ])
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Report");
+    XLSX.writeFile(wb, "machine_report.xlsx");
+  };
 
-
- const handleHTML = () => {
-  const html = `
-    <table border="1">
-      <thead>
-        <tr>${tableHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>
-      </thead>
-      <tbody>
-        ${filtered
-          .map(
-            (row, idx) => `
-          <tr>
-            <td>${idx + 1}</td>
-            <td>${row.machineId}</td>
-            <td>${row.date}</td>
-            <td>${row.totalHours}</td>
-            <td>${row.sewing}</td>
-            <td>${row.idle}</td>
-            <td>${row.rework}</td>
-            <td>${row.noFeeding}</td>
-            <td>${row.meeting}</td>
-            <td>${row.maintenance}</td>
-            <td>${row.needleBreak}</td>
-            <td>${row.pt}</td>
-            <td>${row.npt}</td>
-            <td>${row.needleRuntime}</td>
-            <td>${row.sewingSpeed}</td>
-            <td>${row.stitchCount}</td>
-          </tr>
-        `
-          )
-          .join("")}
-      </tbody>
-    </table>
-  `;
-  const blob = new Blob([html], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "machine_report.html";
-  a.click();
-  URL.revokeObjectURL(url);
-};
+  const handleHTML = () => {
+    const html = `
+      <table border="1">
+        <thead>
+          <tr>${tableHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${filtered
+            .map(
+              (row, idx) => `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>${row.machineId}</td>
+              <td>${row.date}</td>
+              <td>${row.totalHours}</td>
+              <td>${row.sewing}</td>
+              <td>${row.idle}</td>
+              <td>${row.rework}</td>
+              <td>${row.noFeeding}</td>
+              <td>${row.meeting}</td>
+              <td>${row.maintenance}</td>
+              <td>${row.needleBreak}</td>
+              <td>${row.pt}</td>
+              <td>${row.npt}</td>
+              <td>${row.needleRuntime}</td>
+              <td>${row.sewingSpeed}</td>
+              <td>${row.stitchCount}</td>
+            </tr>
+          `
+            )
+            .join("")}
+        </tbody>
+      </table>
+    `;
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "machine_report.html";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleRawData = () => {
     // Implement raw data view logic here
@@ -437,63 +469,63 @@ const filtered = data;
           </div>
         </div>
 
-          <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
-  <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
-    <thead>
-      <tr>
-        {tableHeaders.map((h) => (
-          <th
-            key={h}
-            style={{
-              whiteSpace: "nowrap",
-              padding: "8px 12px",
-              textAlign: "center",
-              border: "1px solid #e2e8f0",
-              background: "#d3edff",
-              fontWeight: 600,
-              fontSize: "15px",
-              minWidth: "110px",
-               color: "#000",
-            }}
-          >
-            {h}
-          </th>
-        ))}
-      </tr>
+        <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
+          <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
+            <thead>
+              <tr>
+                {tableHeaders.map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      whiteSpace: "nowrap",
+                      padding: "8px 12px",
+                      textAlign: "center",
+                      border: "1px solid #e2e8f0",
+                      background: "#d3edff",
+                      fontWeight: 600,
+                      fontSize: "15px",
+                      minWidth: "110px",
+                      color: "#000",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
             </thead>
-           <tbody>
-  {paginated.length === 0 ? (
-    <tr>
-      <td
-        colSpan={tableHeaders.length}
-        className="machine-table-nodata"
-      >
-        No data found.
-      </td>
-    </tr>
-  ) : (
-    paginated.map((row, idx) => (
-      <tr key={idx}>
-        <td>{row.sNo}</td>
-        <td>{row.machineId}</td>
-        <td>{row.date}</td>
-        <td>{row.totalHours}</td>
-        <td>{row.sewing}</td>
-        <td>{row.idle}</td>
-        <td>{row.rework}</td>
-        <td>{row.noFeeding}</td>
-        <td>{row.meeting}</td>
-        <td>{row.maintenance}</td>
-        <td>{row.needleBreak}</td>
-        <td>{row.pt + " %"}</td>
-        <td>{row.npt + " %"}</td>
-        <td>{row.needleRuntime + " %"}</td>
-        <td>{row.sewingSpeed}</td>
-        <td>{row.stitchCount}</td>
-      </tr>
-    ))
-  )}
-</tbody>
+            <tbody>
+              {paginated.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={tableHeaders.length}
+                    className="machine-table-nodata"
+                  >
+                    No data found.
+                  </td>
+                </tr>
+              ) : (
+                paginated.map((row, idx) => (
+                  <tr key={idx}>
+                    <td>{row.sNo}</td>
+                    <td>{row.machineId}</td>
+                    <td>{row.date}</td>
+                    <td>{row.totalHours}</td>
+                    <td>{row.sewing}</td>
+                    <td>{row.idle}</td>
+                    <td>{row.rework}</td>
+                    <td>{row.noFeeding}</td>
+                    <td>{row.meeting}</td>
+                    <td>{row.maintenance}</td>
+                    <td>{row.needleBreak}</td>
+                    <td>{row.pt + " %"}</td>
+                    <td>{row.npt + " %"}</td>
+                    <td>{row.needleRuntime + " %"}</td>
+                    <td>{row.sewingSpeed}</td>
+                    <td>{row.stitchCount}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
           </table>
         </div>
         <Pagination />
@@ -512,49 +544,80 @@ const filtered = data;
         ))}
       </div>
 
-      {/* Pie Chart Card - Full width */}
-      <div className="machine-pie-card machine-pie-card-full">
-        <div className="machine-pie-chart machine-pie-chart-large">
-          <ResponsiveContainer width="100%" height={380}>
-            <PieChart>
-              <Pie
-                data={getPieData(pieRow)}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={170}
-                innerRadius={100}
-                labelLine={false}
-                label={({ name }) => name}
-              >
-                {getPieData(pieRow).map((_, i) => (
-                  <Cell key={i} fill={pieColors[i % pieColors.length]} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="machine-pie-info">
-          {getPieData(pieRow).map((item, idx) => (
-            <div className="machine-pie-label" key={item.name}>
-              <span
-                className="machine-pie-dot"
-                style={{
-                  background: pieColors[idx % pieColors.length],
-                }}
-              ></span>
-              <span className="machine-pie-name">
-                {item.name}:
-              </span>
-              <span className="machine-pie-value">
-                {item.value} hrs
-              </span>
+          
+      
+            {/* Pie Chart Card - Full width */}
+            <div className="machine-pie-card machine-pie-card-full" style={{ display: 'flex', alignItems: 'center', gap: '2rem', minHeight: '400px', padding: '35px', }}>
+              <div className="machine-pie-chart machine-pie-chart-large" style={{ minWidth: 420, width: 420, height: 380, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Sewing", value: Math.max(sewingSum, 0.01) },
+                        { name: "Idle", value: Math.max(idleSum, 0.01) },
+                        { name: "Rework", value: Math.max(reworkSum, 0.01) },
+                        { name: "No Feeding", value: Math.max(noFeedingSum, 0.01) },
+                        { name: "Meeting", value: Math.max(meetingSum, 0.01) },
+                        { name: "Maintenance", value: Math.max(maintenanceSum, 0.01) },
+                        { name: "Needle Break", value: Math.max(needleBreakSum, 0.01) },
+                      ]}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={120}
+                      innerRadius={60}
+                      labelLine={false}
+                      label={false}
+                    >
+                      {[
+                        sewingSum,
+                        idleSum,
+                        reworkSum,
+                        noFeedingSum,
+                        meetingSum,
+                        maintenanceSum,
+                        needleBreakSum,
+                      ].map((_, i) => (
+                        <Cell key={i} fill={pieColors[i % pieColors.length]}  
+                        style={{ cursor: 'pointer' }} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+        formatter={(value, name) => [
+          `${formatHoursMins(value)} (${((value / totalHoursSum) * 100).toFixed(1)}%)`,
+          name
+        ]}
+        labelStyle={{ color: '#000' }}
+        contentStyle={{ 
+          backgroundColor: '#fff', 
+          border: '1px solid #ccc',
+          borderRadius: '4px',
+          fontSize: '14px'
+        }}
+      />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="machine-pie-info" style={{ flex: 1, padding: '1rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '16px' }}>
+                  Hours Breakdown (All Machines Total: {formatHoursMins(totalHoursSum)})
+                </div>
+                <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>
+                  <b>Total Hours:</b> {formatHoursMins(totalHoursSum)}
+                </div>
+                <div style={{ fontSize: '14px', lineHeight: '1.6' }}>
+                  <div>{formatHoursMins(sewingSum)} : Sewing Hours</div>
+                  <div>{formatHoursMins(idleSum)} : Idle Hours</div>
+                  <div>{formatHoursMins(reworkSum)} : Rework Hours</div>
+                  <div>{formatHoursMins(noFeedingSum)} : No Feeding Hours</div>
+                  <div>{formatHoursMins(meetingSum)} : Meeting Hours</div>
+                  <div>{formatHoursMins(maintenanceSum)} : Maintenance Hours</div>
+                  <div>{formatHoursMins(needleBreakSum)} : Needle Break Hours</div>
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
+      
     </div>
   );
 }
-        
