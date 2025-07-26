@@ -28,6 +28,28 @@ const tableHeaders = [
   "Stitch Count",
 ];
 
+// ✅ NEW: Raw data table headers
+const rawTableHeaders = [
+  "S.No",
+  "Machine ID",
+  "Line Number", 
+  "Operator ID",
+  "Operator Name",
+  "Date",
+  "Start Time",
+  "End Time",
+  "Mode",
+  "Mode Description",
+  "Stitch Count",
+  "Needle Runtime",
+  "Needle Stop Time",
+  "Duration",
+  "SPM",
+  "TX Log ID",
+  "STR Log ID",
+  "Created At"
+];
+
 const pieColors = [
   "#3182ce",
   "#d69e2e",
@@ -67,6 +89,11 @@ export default function Line({
   const [operatorOptions, setOperatorOptions] = useState([]);
   const rowsPerPage = 10;
   const [filtersActive, setFiltersActive] = useState(false);
+  
+  // ✅ NEW: Raw data state
+  const [showRawData, setShowRawData] = useState(false);
+  const [rawData, setRawData] = useState([]);
+  const [rawLoading, setRawLoading] = useState(false);
   
   // ✅ ADD: State for tile data from Line Report backend
   const [tileData, setTileData] = useState({
@@ -178,6 +205,31 @@ export default function Line({
     setLoading(false);
   };
 
+  // ✅ NEW: Fetch raw data function
+  const fetchRawData = async () => {
+    setRawLoading(true);
+    try {
+      const params = {};
+      if (from && to) {
+        params.from = from;
+        params.to = to;
+      } else if (from) {
+        params.date = from;
+      }
+      if (operatorId || propLineId) {
+        params.line_id = operatorId || propLineId;
+      }
+
+      // ✅ NEW: Call Line Raw Data endpoint
+      const res = await axios.get("http://localhost:8000/api/line-report/raw/", { params });
+      setRawData(res.data.raw_data || []);
+    } catch (err) {
+      console.error("Line Raw Data fetch error:", err);
+      setRawData([]);
+    }
+    setRawLoading(false);
+  };
+
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line
@@ -187,6 +239,13 @@ export default function Line({
   const filtered = data;
   const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const paginated = filtered.slice(
+    (page - 1) * rowsPerPage,
+    page * rowsPerPage
+  );
+
+  // ✅ NEW: Raw data pagination
+  const rawPageCount = Math.max(1, Math.ceil(rawData.length / rowsPerPage));
+  const rawPaginated = rawData.slice(
     (page - 1) * rowsPerPage,
     page * rowsPerPage
   );
@@ -237,79 +296,141 @@ export default function Line({
     setPage(1);
     setOperatorId("");
     setFiltersActive(false);
+    setShowRawData(false); // ✅ NEW: Reset raw data view
     fetchData();
   };
 
   const handleGenerate = () => {
     setPage(1);
     setFiltersActive(true);
-    fetchData();
+    if (showRawData) {
+      fetchRawData();
+    } else {
+      fetchData();
+    }
   };
 
   const handleCSV = () => {
+    // ✅ NEW: Handle both summary and raw data CSV export
+    const currentData = showRawData ? rawData : filtered;
+    const currentHeaders = showRawData ? rawTableHeaders : tableHeaders;
+    
+    let csvRows;
+    if (showRawData) {
+      csvRows = currentData.map(row => [
+        row["S.No"],
+        row["Machine ID"],
+        row["Line Number"],
+        row["Operator ID"],
+        row["Operator Name"],
+        row["Date"],
+        row["Start Time"],
+        row["End Time"],
+        row["Mode"],
+        row["Mode Description"],
+        row["Stitch Count"],
+        row["Needle Runtime"],
+        row["Needle Stop Time"],
+        row["Duration"],
+        row["SPM"],
+        row["TX Log ID"],
+        row["STR Log ID"],
+        row["Created At"]
+      ]);
+    } else {
+      csvRows = currentData.map(row => [
+        row.sNo,
+        row.date,
+        row.lineNumber,
+        row.totalHours,
+        row.sewing,
+        row.idle,
+        row.rework,
+        row.noFeeding,
+        row.meeting,
+        row.maintenance,
+        row.needleBreak,
+        row.pt,
+        row.npt,
+        row.needleRuntime,
+        row.sewingSpeed,
+        row.stitchCount,
+      ]);
+    }
+
     const csv = [
-      tableHeaders.join(","),
-      ...filtered.map((row, idx) =>
-        [
-          row.sNo,
-          row.date,
-          row.lineNumber,
-          row.totalHours,
-          row.sewing,
-          row.idle,
-          row.rework,
-          row.noFeeding,
-          row.meeting,
-          row.maintenance,
-          row.needleBreak,
-          row.pt,
-          row.npt,
-          row.needleRuntime,
-          row.sewingSpeed,
-          row.stitchCount,
-        ].join(",")
-      ),
+      currentHeaders.join(","),
+      ...csvRows.map(row => row.join(","))
     ].join("\n");
+    
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "line_report.csv";
+    a.download = `line_report_${showRawData ? 'raw' : 'summary'}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleHTML = () => {
+    // ✅ NEW: Handle both summary and raw data HTML export
+    const currentData = showRawData ? rawData : filtered;
+    const currentHeaders = showRawData ? rawTableHeaders : tableHeaders;
+    
+    let htmlRows;
+    if (showRawData) {
+      htmlRows = currentData.map(row => `
+        <tr>
+          <td>${row["S.No"]}</td>
+          <td>${row["Machine ID"]}</td>
+          <td>${row["Line Number"]}</td>
+          <td>${row["Operator ID"]}</td>
+          <td>${row["Operator Name"]}</td>
+          <td>${row["Date"]}</td>
+          <td>${row["Start Time"]}</td>
+          <td>${row["End Time"]}</td>
+          <td>${row["Mode"]}</td>
+          <td>${row["Mode Description"]}</td>
+          <td>${row["Stitch Count"]}</td>
+          <td>${row["Needle Runtime"]}</td>
+          <td>${row["Needle Stop Time"]}</td>
+          <td>${row["Duration"]}</td>
+          <td>${row["SPM"]}</td>
+          <td>${row["TX Log ID"]}</td>
+          <td>${row["STR Log ID"]}</td>
+          <td>${row["Created At"]}</td>
+        </tr>
+      `);
+    } else {
+      htmlRows = currentData.map(row => `
+        <tr>
+          <td>${row.sNo}</td>
+          <td>${row.date}</td>
+          <td>${row.lineNumber}</td>
+          <td>${row.totalHours}</td>
+          <td>${row.sewing}</td>
+          <td>${row.idle}</td>
+          <td>${row.rework}</td>
+          <td>${row.noFeeding}</td>
+          <td>${row.meeting}</td>
+          <td>${row.maintenance}</td>
+          <td>${row.needleBreak}</td>
+          <td>${row.pt}</td>
+          <td>${row.npt}</td>
+          <td>${row.needleRuntime}</td>
+          <td>${row.sewingSpeed}</td>
+          <td>${row.stitchCount}</td>
+        </tr>
+      `);
+    }
+
     const html = `
       <table border="1">
         <thead>
-          <tr>${tableHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>
+          <tr>${currentHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>
         </thead>
         <tbody>
-          ${filtered
-            .map(
-              (row, idx) => `
-            <tr>
-              <td>${row.sNo}</td>
-              <td>${row.date}</td>
-              <td>${row.lineNumber}</td>
-              <td>${row.totalHours}</td>
-              <td>${row.sewing}</td>
-              <td>${row.idle}</td>
-              <td>${row.rework}</td>
-              <td>${row.noFeeding}</td>
-              <td>${row.meeting}</td>
-              <td>${row.maintenance}</td>
-              <td>${row.needleBreak}</td>
-              <td>${row.pt}</td>
-              <td>${row.npt}</td>
-              <td>${row.needleRuntime}</td>
-              <td>${row.sewingSpeed}</td>
-              <td>${row.stitchCount}</td>
-            </tr>
-          `
-            )
-            .join("")}
+          ${htmlRows.join("")}
         </tbody>
       </table>
     `;
@@ -317,50 +438,63 @@ export default function Line({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "line_report.html";
+    a.download = `line_report_${showRawData ? 'raw' : 'summary'}.html`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
+  // ✅ NEW: Handle raw data view toggle
   const handleRawData = () => {
-    console.log("Raw data view requested");
+    setShowRawData(!showRawData);
+    setPage(1); // Reset to first page
+    if (!showRawData) {
+      fetchRawData(); // Fetch raw data when switching to raw view
+    }
   };
 
   const handleSummary = () => {
     console.log("Summary view requested");
   };
 
-  const Pagination = () => (
-    <div className="machine-pagination">
-      <button
-        onClick={() => setPage((p) => Math.max(1, p - 1))}
-        disabled={page === 1}
-        className="machine-btn machine-btn-blue"
-      >
-        Prev
-      </button>
-      <span className="machine-pagination-label">
-        Page {page} of {pageCount}
-      </span>
-      <button
-        onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-        disabled={page === pageCount}
-        className="machine-btn machine-btn-blue"
-      >
-        Next
-      </button>
-    </div>
-  );
+  const Pagination = () => {
+    const currentPageCount = showRawData ? rawPageCount : pageCount;
+    
+    return (
+      <div className="machine-pagination">
+        <button
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={page === 1}
+          className="machine-btn machine-btn-blue"
+        >
+          Prev
+        </button>
+        <span className="machine-pagination-label">
+          Page {page} of {currentPageCount}
+        </span>
+        <button
+          onClick={() => setPage((p) => Math.min(currentPageCount, p + 1))}
+          disabled={page === currentPageCount}
+          className="machine-btn machine-btn-blue"
+        >
+          Next
+        </button>
+      </div>
+    );
+  };
 
   // ✅ ADD: If tableOnly mode, return only the table
   if (tableOnly) {
+    const currentHeaders = showRawData ? rawTableHeaders : tableHeaders;
+    const currentData = showRawData ? rawPaginated : paginated;
+    const currentLoading = showRawData ? rawLoading : loading;
+
     return (
       <div className="machine-table-card">
         <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
           <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
             <thead>
               <tr>
-                {tableHeaders.map((h) => (
+                {currentHeaders.map((h) => (
                   <th
                     key={h}
                     style={{
@@ -381,20 +515,43 @@ export default function Line({
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {currentLoading ? (
                 <tr>
-                  <td colSpan={tableHeaders.length} className="machine-table-nodata">
+                  <td colSpan={currentHeaders.length} className="machine-table-nodata">
                     Loading...
                   </td>
                 </tr>
-              ) : paginated.length === 0 ? (
+              ) : currentData.length === 0 ? (
                 <tr>
-                  <td colSpan={tableHeaders.length} className="machine-table-nodata">
+                  <td colSpan={currentHeaders.length} className="machine-table-nodata">
                     No data found.
                   </td>
                 </tr>
+              ) : showRawData ? (
+                currentData.map((row, idx) => (
+                  <tr key={idx}>
+                    <td>{row["S.No"]}</td>
+                    <td>{row["Machine ID"]}</td>
+                    <td>{row["Line Number"]}</td>
+                    <td>{row["Operator ID"]}</td>
+                    <td>{row["Operator Name"]}</td>
+                    <td>{row["Date"]}</td>
+                    <td>{row["Start Time"]}</td>
+                    <td>{row["End Time"]}</td>
+                    <td>{row["Mode"]}</td>
+                    <td>{row["Mode Description"]}</td>
+                    <td>{row["Stitch Count"]}</td>
+                    <td>{row["Needle Runtime"]}</td>
+                    <td>{row["Needle Stop Time"]}</td>
+                    <td>{row["Duration"]}</td>
+                    <td>{row["SPM"]}</td>
+                    <td>{row["TX Log ID"]}</td>
+                    <td>{row["STR Log ID"]}</td>
+                    <td>{row["Created At"]}</td>
+                  </tr>
+                ))
               ) : (
-                paginated.map((row, idx) => (
+                currentData.map((row, idx) => (
                   <tr key={idx}>
                     <td>{row.sNo}</td>
                     <td>{row.date}</td>
@@ -423,13 +580,17 @@ export default function Line({
     );
   }
 
+  const currentHeaders = showRawData ? rawTableHeaders : tableHeaders;
+  const currentData = showRawData ? rawPaginated : paginated;
+  const currentLoading = showRawData ? rawLoading : loading;
+
   // ✅ EXISTING: Full component view when not in tableOnly mode
   return (
     <div className="machine-root">
       {/* Title and Buttons Row */}
       <div className="machine-title-row">
         <div className="machine-title">
-          Line Table
+          Line Table {showRawData ? "- Raw Data" : ""}
         </div>
         <div className="machine-title-btns">
           <button
@@ -449,11 +610,11 @@ export default function Line({
           </button>
           <button
             type="button"
-            className="machine-btn machine-btn-raw"
+            className={`machine-btn ${showRawData ? 'machine-btn-blue' : 'machine-btn-raw'}`}
             onClick={handleRawData}
           >
             <FaDownload className="machine-btn-icon" />
-            View Raw Data
+            {showRawData ? 'View Summary' : 'View Raw Data'}
           </button>
         </div>
       </div>
@@ -502,9 +663,9 @@ export default function Line({
               type="button"
               className="machine-btn machine-btn-blue machine-btn-generate"
               onClick={handleGenerate}
-              disabled={loading}
+              disabled={currentLoading}
             >
-              {loading ? "Loading..." : "Generate"}
+              {currentLoading ? "Loading..." : "Generate"}
             </button>
 
             <button
@@ -522,7 +683,7 @@ export default function Line({
           <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
             <thead>
               <tr>
-                {tableHeaders.map((h) => (
+                {currentHeaders.map((h) => (
                   <th
                     key={h}
                     style={{
@@ -543,20 +704,43 @@ export default function Line({
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {currentLoading ? (
                 <tr>
-                  <td colSpan={tableHeaders.length} className="machine-table-nodata">
+                  <td colSpan={currentHeaders.length} className="machine-table-nodata">
                     Loading...
                   </td>
                 </tr>
-              ) : paginated.length === 0 ? (
+              ) : currentData.length === 0 ? (
                 <tr>
-                  <td colSpan={tableHeaders.length} className="machine-table-nodata">
+                  <td colSpan={currentHeaders.length} className="machine-table-nodata">
                     No data found.
                   </td>
                 </tr>
+              ) : showRawData ? (
+                currentData.map((row, idx) => (
+                  <tr key={idx}>
+                    <td>{row["S.No"]}</td>
+                    <td>{row["Machine ID"]}</td>
+                    <td>{row["Line Number"]}</td>
+                    <td>{row["Operator ID"]}</td>
+                    <td>{row["Operator Name"]}</td>
+                    <td>{row["Date"]}</td>
+                    <td>{row["Start Time"]}</td>
+                    <td>{row["End Time"]}</td>
+                    <td>{row["Mode"]}</td>
+                    <td>{row["Mode Description"]}</td>
+                    <td>{row["Stitch Count"]}</td>
+                    <td>{row["Needle Runtime"]}</td>
+                    <td>{row["Needle Stop Time"]}</td>
+                    <td>{row["Duration"]}</td>
+                    <td>{row["SPM"]}</td>
+                    <td>{row["TX Log ID"]}</td>
+                    <td>{row["STR Log ID"]}</td>
+                    <td>{row["Created At"]}</td>
+                  </tr>
+                ))
               ) : (
-                paginated.map((row, idx) => (
+                currentData.map((row, idx) => (
                   <tr key={idx}>
                     <td>{row.sNo}</td>
                     <td>{row.date}</td>
@@ -583,61 +767,66 @@ export default function Line({
         <Pagination />
       </div>
 
-      {/* ✅ FIXED: Tiles Row - Use Line tile data */}
-      <div className="machine-tiles-row machine-tiles-row-full">
-        {tiles.map((tile, idx) => (
-          <div
-            className={`machine-tile machine-tile-shade ${tile.bg} ${tile.color}`}
-            key={tile.label}
-          >
-            <div className="machine-tile-label">{tile.label}</div>
-            <div className="machine-tile-value">{tile.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Pie Chart Card - Full width */}
-      <div className="machine-pie-card machine-pie-card-full">
-        <div className="machine-pie-chart machine-pie-chart-large">
-          <ResponsiveContainer width="100%" height={380}>
-            <PieChart>
-              <Pie
-                data={getPieData(pieRow)}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={170}
-                innerRadius={100}
-                labelLine={false}
-                label={({ name }) => name}
+      {/* ✅ HIDE: Tiles and Pie Chart when showing raw data */}
+      {!showRawData && (
+        <>
+          {/* ✅ FIXED: Tiles Row - Use Line tile data */}
+          <div className="machine-tiles-row machine-tiles-row-full">
+            {tiles.map((tile, idx) => (
+              <div
+                className={`machine-tile machine-tile-shade ${tile.bg} ${tile.color}`}
+                key={tile.label}
               >
-                {getPieData(pieRow).map((_, i) => (
-                  <Cell key={i} fill={pieColors[i % pieColors.length]} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="machine-pie-info">
-          {getPieData(pieRow).map((item, idx) => (
-            <div className="machine-pie-label" key={item.name}>
-              <span
-                className="machine-pie-dot"
-                style={{
-                  background: pieColors[idx % pieColors.length],
-                }}
-              ></span>
-              <span className="machine-pie-name">
-                {item.name}:
-              </span>
-              <span className="machine-pie-value">
-                {item.value} hrs
-              </span>
+                <div className="machine-tile-label">{tile.label}</div>
+                <div className="machine-tile-value">{tile.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Pie Chart Card - Full width */}
+          <div className="machine-pie-card machine-pie-card-full">
+            <div className="machine-pie-chart machine-pie-chart-large">
+              <ResponsiveContainer width="100%" height={380}>
+                <PieChart>
+                  <Pie
+                    data={getPieData(pieRow)}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={170}
+                    innerRadius={100}
+                    labelLine={false}
+                    label={({ name }) => name}
+                  >
+                    {getPieData(pieRow).map((_, i) => (
+                      <Cell key={i} fill={pieColors[i % pieColors.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-          ))}
-        </div>
-      </div>
+            <div className="machine-pie-info">
+              {getPieData(pieRow).map((item, idx) => (
+                <div className="machine-pie-label" key={item.name}>
+                  <span
+                    className="machine-pie-dot"
+                    style={{
+                      background: pieColors[idx % pieColors.length],
+                    }}
+                  ></span>
+                  <span className="machine-pie-name">
+                    {item.name}:
+                  </span>
+                  <span className="machine-pie-value">
+                    {item.value} hrs
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

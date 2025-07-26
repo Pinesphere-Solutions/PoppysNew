@@ -33,8 +33,6 @@ def get_machine_times(logs, machine_id):
     return start_time, end_time
 
 
-
-
 """ Fetch all the existing machine logs for Poppys users & it will print in console"""
 """ Condition 1 - Allow all the data posting via POSTMAN without any restrictions irrespective of user permissions """
 """ Condition 2 - If Str_LOGID > 1000, the system checks if a log with Str_LOGID - 1000 exists for the same machine and date; if yes, it skips saving, otherwise saves with the subtracted value.
@@ -1228,7 +1226,6 @@ class MachineReport(APIView):
         })
         
 """ Module 1 - Machine Report - Raw Data"""   
-    # ...existing code...
     
 class MachineRawDataReport(APIView):
         """
@@ -1286,9 +1283,7 @@ class MachineRawDataReport(APIView):
                 "raw_data": raw_data,
                 "total_records": len(raw_data)
             })
-    
-    # ...existing code...    
-        
+     
 """ Module 2 - Line Report """     
 class LineReport(APIView):
         """
@@ -1775,11 +1770,80 @@ class LineReport(APIView):
                     "processing_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
             })
+
+
+""" Module 2 - Line Report - Raw Data"""   
+class LineRawDataReport(APIView):
+    """
+    Raw Line Data Report - Returns unprocessed line logs
+    """
+    
+    def get(self, request, *args, **kwargs):
+        line_id_filter = request.query_params.get('line_id')
+        date_str = request.query_params.get('date')
+        from_str = request.query_params.get('from')
+        to_str = request.query_params.get('to')
+
+        logger.info("=== LINE RAW DATA REQUEST ===")
+        logger.info(f"Parameters: line_id={line_id_filter}, date={date_str}, from={from_str}, to={to_str}")
+
+        # Build query
+        logs = MachineLog.objects.all()
+
+        # Apply filters
+        if from_str and to_str:
+            logs = logs.filter(DATE__gte=from_str, DATE__lte=to_str)
+        elif date_str:
+            logs = logs.filter(DATE=date_str)
             
+        if line_id_filter:
+            logs = logs.filter(LINE_NUMB=line_id_filter)
+
+        # RFID to Operator Name mapping
+        operator_rfid_mapping = {
+            "3658143475": "OPERATOR-01",
+            "3658143476": "OPERATOR-02", 
+            "3658143477": "OPERATOR-03",
+            "3658143478": "OPERATOR-04",
+            "3658143479": "OPERATOR-05",
+            # Add more mappings as needed
+        }
+
+        # Convert to raw data format
+        raw_data = []
+        for idx, log in enumerate(logs, 1):
+            operator_id = getattr(log, 'OPERATOR_ID', '')
+            operator_name = operator_rfid_mapping.get(str(operator_id), f"OPERATOR-{operator_id}" if operator_id else "Unknown")
             
-            
-            
-""" Module 3 - Operator Report """     
+            raw_data.append({
+                "S.No": idx,
+                "Machine ID": log.MACHINE_ID,
+                "Line Number": getattr(log, 'LINE_NUMB', ''),
+                "Operator ID": operator_id,
+                "Operator Name": operator_name,
+                "Date": log.DATE,
+                "Start Time": log.START_TIME.strftime("%H:%M:%S") if log.START_TIME else "",
+                "End Time": log.END_TIME.strftime("%H:%M:%S") if log.END_TIME else "",
+                "Mode": log.MODE,
+                "Mode Description": MODES.get(log.MODE, f"Unknown Mode {log.MODE}"),
+                "Stitch Count": getattr(log, 'STITCH_COUNT', 0),
+                "Needle Runtime": getattr(log, 'NEEDLE_RUNTIME', 0),
+                "Needle Stop Time": getattr(log, 'NEEDLE_STOP_TIME', ''),
+                "Duration": "",  # Calculate if needed
+                "SPM": getattr(log, 'RESERVE', 0),
+                "TX Log ID": getattr(log, 'Tx_LOGID', ''),
+                "STR Log ID": getattr(log, 'Str_LOGID', ''),
+                "Created At": getattr(log, 'created_at', '').strftime("%Y-%m-%d %H:%M:%S") if hasattr(log, 'created_at') and getattr(log, 'created_at') else ""
+            })
+
+        logger.info(f"Line raw data records returned: {len(raw_data)}")
+        
+        return Response({
+            "raw_data": raw_data,
+            "total_records": len(raw_data)
+        })
+
+           
 """ Module 3 - Operator Report """     
 class OperatorReport(APIView):
     """
