@@ -13,7 +13,7 @@ const menuItems = [
   { label: "Operator Report", icon: <FaUserCog />, path: "/operator" },
   { label: "Line Report", icon: <FaIndustry />, path: "/line" },
   { label: "Consolidated Report", icon: <BsBarChartLine />, path: "/consolidated" },
-  { label: "Settings", icon: <MdSettings />, path: "/settings" }
+  
 ];
 
 const HEADER_HEIGHT = 56; // px

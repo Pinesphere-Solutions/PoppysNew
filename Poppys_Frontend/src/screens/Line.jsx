@@ -28,7 +28,6 @@ const tableHeaders = [
   "Stitch Count",
 ];
 
-
 const pieColors = [
   "#3182ce",
   "#d69e2e",
@@ -50,108 +49,182 @@ function getPieData(row) {
   ];
 }
 
-export default function Line() {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+export default function Line({ 
+  tableOnly = false, 
+  from: propFrom = "", 
+  to: propTo = "", 
+  machineId: propMachineId = "", 
+  selectedOperatorId: propSelectedOperatorId = "", 
+  lineId: propLineId = "" 
+}) {
+  const [from, setFrom] = useState(propFrom);
+  const [to, setTo] = useState(propTo);
   const [search, setSearch] = useState("");
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [operatorId, setOperatorId] = useState("");
+  const [operatorId, setOperatorId] = useState(propLineId);
   const [operatorOptions, setOperatorOptions] = useState([]);
   const rowsPerPage = 10;
   const [filtersActive, setFiltersActive] = useState(false);
+  
+  // ✅ ADD: State for tile data from Line Report backend
+  const [tileData, setTileData] = useState({
+    tile1_productive_time: { percentage: 0, total_productive_hours: "00:00", total_hours: "00:00" },
+    tile2_needle_time: { percentage: 0 },
+    tile3_sewing_speed: { average_spm: 0 },
+    tile4_total_hours: { total_hours: "00:00" }
+  });
+
+  // Update state when props change
+  useEffect(() => {
+    setFrom(propFrom);
+    setTo(propTo);
+    setOperatorId(propLineId);
+  }, [propFrom, propTo, propLineId]);
 
   // Dynamically fetch line IDs for dropdown
   useEffect(() => {
-    axios
-      .get("http://localhost:8000/api/poppys-line-logs/")
-      .then(res => {
-        const ids = (res.data.summary || []).map(row => row["Line ID"]);
-        setOperatorOptions([...new Set(ids)]);
-      })
-      .catch(() => setOperatorOptions([]));
-  }, [from, to, operatorId]);
+    if (!tableOnly) {
+      axios
+        .get("http://localhost:8000/api/poppys-line-logs/")
+        .then(res => {
+          const ids = (res.data.summary || []).map(row => row["Line ID"]);
+          setOperatorOptions([...new Set(ids)]);
+        })
+        .catch(() => setOperatorOptions([]));
+    }
+  }, [from, to, operatorId, tableOnly]);
 
-  // Fetch data from backend
+  // ✅ FIXED: Fetch data from Line Report backend with proper tile extraction
   const fetchData = async () => {
     setLoading(true);
     try {
       const params = {};
-      // if (from) params.date = from;
-      // if (operatorId) params.operator_id = operatorId;
-      // ...existing code...
-      const res = await axios.get("http://localhost:8000/api/line-report/");
-      // ...existing code...
+      if (from && to) {
+        params.from = from;
+        params.to = to;
+      } else if (from) {
+        params.date = from;
+      }
+      if (operatorId || propLineId) {
+        params.line_id = operatorId || propLineId;
+      }
+      if (propMachineId) {
+        params.machine_id = propMachineId;
+      }
+      if (propSelectedOperatorId) {
+        params.operator_id = propSelectedOperatorId;
+      }
+
+      // ✅ FIXED: Call Line Report endpoint with parameters
+      const res = await axios.get("http://localhost:8000/api/line-report/", { params });
 
       const backendRows = res.data.summary || [];
+
       const mappedRows = backendRows.map((row, idx) => {
         const normalizedDate = row["Date"] || row["date"] || "";
         return {
+          sNo: idx + 1,
           date: normalizedDate,
-          operatorId: row["Line ID"] ?? "",
-          operatorName: row["Line Name"] ?? "",
-          totalHours: row["Total Hours"] ?? 0,
-          sewing: row["Sewing Hours"] ?? 0,
-          idle: row["Idle Hours"] ?? 0,
-          rework: row["Rework Hours"] ?? 0,
-          noFeeding: row["No feeding Hours"] ?? 0,
-          meeting: row["Meeting Hours"] ?? 0,
-          maintenance: row["Maintenance Hours"] ?? 0,
-          needleBreak: row["Needle Break"] ?? 0,
+          // ✅ FIXED: Use correct field names from LineReport backend
+          lineNumber: row["Line Number"] ?? "",       // Fixed field name
+          totalHours: row["Total Hours"] ?? "00:00",  // Fixed with default
+          sewing: row["Sewing Hours"] ?? "00:00",
+          idle: row["Idle Hours"] ?? "00:00",
+          rework: row["Rework Hours"] ?? "00:00",
+          noFeeding: row["No feeding Hours"] ?? "00:00",
+          meeting: row["Meeting Hours"] ?? "00:00",
+          maintenance: row["Maintenance Hours"] ?? "00:00",
+          needleBreak: row["Needle Break"] ?? "00:00",
           pt: row["PT %"] ?? 0,
           npt: row["NPT %"] ?? 0,
-          needleRuntime: row["Needle Time %"] ?? 0,
+          needleRuntime: row["Needle Runtime %"] ?? 0,
           sewingSpeed: row["SPM"] ?? 0,
           stitchCount: row["Stitch Count"] ?? 0,
         };
       });
 
       setData(mappedRows);
+
+      // ✅ FIXED: Extract tile data from Line Report backend response
+      if (!tableOnly) {
+        setTileData({
+          tile1_productive_time: res.data.tile1_productive_time || { 
+            percentage: 0, 
+            total_productive_hours: "00:00", 
+            total_hours: "00:00" 
+          },
+          tile2_needle_time: res.data.tile2_needle_time || { percentage: 0 },
+          tile3_sewing_speed: res.data.tile3_sewing_speed || { average_spm: 0 },
+          tile4_total_hours: res.data.tile4_total_hours || { total_hours: "00:00" }
+        });
+      }
+
     } catch (err) {
+      console.error("Line Report fetch error:", err);
       setData([]);
+      
+      // ✅ FIXED: Reset tile data on error
+      if (!tableOnly) {
+        setTileData({
+          tile1_productive_time: { percentage: 0, total_productive_hours: "00:00", total_hours: "00:00" },
+          tile2_needle_time: { percentage: 0 },
+          tile3_sewing_speed: { average_spm: 0 },
+          tile4_total_hours: { total_hours: "00:00" }
+        });
+      }
     }
     setLoading(false);
   };
+
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line
-  }, [from, to, operatorId]);
+  }, [from, to, operatorId, propMachineId, propSelectedOperatorId, propLineId]);
 
-  // Filter by search, from, to
-  /* const filtered = data.filter(
-    (row) =>
-      (!search || (row.date && row.date.includes(search))) &&
-      (!from || (row.date && row.date >= from)) &&
-      (!to || (row.date && row.date <= to))
-  ); */
-
-  const filtered = data; // Use the fetched data directly for now
+  // ✅ UPDATED: Use fetched data directly (no additional filtering needed as backend handles it)
+  const filtered = data;
   const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const paginated = filtered.slice(
     (page - 1) * rowsPerPage,
     page * rowsPerPage
   );
 
-  const pieRow = filtered[0] || {};
+  // ✅ UPDATED: Use first row for pie chart or empty object
+  const pieRow = filtered[0] || {
+    sewing: "00:00",
+    idle: "00:00", 
+    rework: "00:00",
+    noFeeding: "00:00",
+    meeting: "00:00",
+    maintenance: "00:00",
+    needleBreak: "00:00"
+  };
 
-  const tileData = [
+  // ✅ FIXED: Use Line tile data with correct structure
+  const tiles = [
     {
-      label: "Total Hours",
-      value: pieRow.totalHours ?? 0,
+      label: "Productive Time %",
+      value: `${tileData.tile1_productive_time.percentage}%`,
       bg: "tile-bg-blue",
       color: "tile-color-blue",
     },
     {
-      label: "Sewing",
-      value: pieRow.sewing ?? 0,
+      label: "Needle Time %", 
+      value: `${tileData.tile2_needle_time.percentage}%`,
       bg: "tile-bg-green",
       color: "tile-color-green",
     },
-    { label: "Idle", value: pieRow.idle ?? 0, bg: "tile-bg-orange", color: "tile-color-orange" },
     {
-      label: "Rework",
-      value: pieRow.rework ?? 0,
+      label: "Sewing Speed",
+      value: `${tileData.tile3_sewing_speed.average_spm} SPM`,
+      bg: "tile-bg-orange", 
+      color: "tile-color-orange"
+    },
+    {
+      label: "Total Hours",
+      value: tileData.tile4_total_hours.total_hours,
       bg: "tile-bg-pink",
       color: "tile-color-pink",
     },
@@ -167,14 +240,20 @@ export default function Line() {
     fetchData();
   };
 
+  const handleGenerate = () => {
+    setPage(1);
+    setFiltersActive(true);
+    fetchData();
+  };
+
   const handleCSV = () => {
     const csv = [
       tableHeaders.join(","),
       ...filtered.map((row, idx) =>
         [
+          row.sNo,
           row.date,
-          row.operatorId,
-          row.operatorName,
+          row.lineNumber,
           row.totalHours,
           row.sewing,
           row.idle,
@@ -195,7 +274,7 @@ export default function Line() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "operator_report.csv";
+    a.download = "line_report.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -211,9 +290,9 @@ export default function Line() {
             .map(
               (row, idx) => `
             <tr>
+              <td>${row.sNo}</td>
               <td>${row.date}</td>
-              <td>${row.operatorId}</td>
-              <td>${row.operatorName}</td>
+              <td>${row.lineNumber}</td>
               <td>${row.totalHours}</td>
               <td>${row.sewing}</td>
               <td>${row.idle}</td>
@@ -238,17 +317,17 @@ export default function Line() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "operator_report.html";
+    a.download = "line_report.html";
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleRawData = () => {
-    // Implement raw data view logic here
+    console.log("Raw data view requested");
   };
 
   const handleSummary = () => {
-    // Implement summary view logic here
+    console.log("Summary view requested");
   };
 
   const Pagination = () => (
@@ -273,6 +352,78 @@ export default function Line() {
     </div>
   );
 
+  // ✅ ADD: If tableOnly mode, return only the table
+  if (tableOnly) {
+    return (
+      <div className="machine-table-card">
+        <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
+          <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
+            <thead>
+              <tr>
+                {tableHeaders.map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      whiteSpace: "nowrap",
+                      padding: "8px 12px",
+                      textAlign: "center",
+                      border: "1px solid #e2e8f0",
+                      background: "#d3edff",
+                      fontWeight: 600,
+                      fontSize: "15px",
+                      minWidth: "110px",
+                      color: "#000",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={tableHeaders.length} className="machine-table-nodata">
+                    Loading...
+                  </td>
+                </tr>
+              ) : paginated.length === 0 ? (
+                <tr>
+                  <td colSpan={tableHeaders.length} className="machine-table-nodata">
+                    No data found.
+                  </td>
+                </tr>
+              ) : (
+                paginated.map((row, idx) => (
+                  <tr key={idx}>
+                    <td>{row.sNo}</td>
+                    <td>{row.date}</td>
+                    <td>{row.lineNumber}</td>
+                    <td>{row.totalHours}</td>
+                    <td>{row.sewing}</td>
+                    <td>{row.idle}</td>
+                    <td>{row.rework}</td>
+                    <td>{row.noFeeding}</td>
+                    <td>{row.meeting}</td>
+                    <td>{row.maintenance}</td>
+                    <td>{row.needleBreak}</td>
+                    <td>{row.pt}%</td>
+                    <td>{row.npt}%</td>
+                    <td>{row.needleRuntime}%</td>
+                    <td>{row.sewingSpeed}</td>
+                    <td>{row.stitchCount}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <Pagination />
+      </div>
+    );
+  }
+
+  // ✅ EXISTING: Full component view when not in tableOnly mode
   return (
     <div className="machine-root">
       {/* Title and Buttons Row */}
@@ -350,12 +501,10 @@ export default function Line() {
             <button
               type="button"
               className="machine-btn machine-btn-blue machine-btn-generate"
-              onClick={() => {
-                setPage(1);
-                setFiltersActive(true);
-                fetchData();
-              }}  >
-              Generate
+              onClick={handleGenerate}
+              disabled={loading}
+            >
+              {loading ? "Loading..." : "Generate"}
             </button>
 
             <button
@@ -394,21 +543,24 @@ export default function Line() {
               </tr>
             </thead>
             <tbody>
-              {paginated.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td
-                    colSpan={tableHeaders.length}
-                    className="machine-table-nodata"
-                  >
+                  <td colSpan={tableHeaders.length} className="machine-table-nodata">
+                    Loading...
+                  </td>
+                </tr>
+              ) : paginated.length === 0 ? (
+                <tr>
+                  <td colSpan={tableHeaders.length} className="machine-table-nodata">
                     No data found.
                   </td>
                 </tr>
               ) : (
                 paginated.map((row, idx) => (
                   <tr key={idx}>
+                    <td>{row.sNo}</td>
                     <td>{row.date}</td>
-                    <td>{row.operatorId}</td>
-                    <td>{row.operatorName}</td>
+                    <td>{row.lineNumber}</td>
                     <td>{row.totalHours}</td>
                     <td>{row.sewing}</td>
                     <td>{row.idle}</td>
@@ -417,9 +569,9 @@ export default function Line() {
                     <td>{row.meeting}</td>
                     <td>{row.maintenance}</td>
                     <td>{row.needleBreak}</td>
-                    <td>{row.pt + " %"}</td>
-                    <td>{row.npt + " %"}</td>
-                    <td>{row.needleRuntime + " %"}</td>
+                    <td>{row.pt}%</td>
+                    <td>{row.npt}%</td>
+                    <td>{row.needleRuntime}%</td>
                     <td>{row.sewingSpeed}</td>
                     <td>{row.stitchCount}</td>
                   </tr>
@@ -431,9 +583,9 @@ export default function Line() {
         <Pagination />
       </div>
 
-      {/* Tiles Row - End to End */}
+      {/* ✅ FIXED: Tiles Row - Use Line tile data */}
       <div className="machine-tiles-row machine-tiles-row-full">
-        {tileData.map((tile, idx) => (
+        {tiles.map((tile, idx) => (
           <div
             className={`machine-tile machine-tile-shade ${tile.bg} ${tile.color}`}
             key={tile.label}

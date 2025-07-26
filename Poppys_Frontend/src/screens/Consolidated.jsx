@@ -6,7 +6,11 @@ import { FaCalendarAlt } from "react-icons/fa";
 import { FaDownload } from "react-icons/fa";
 import '../../assets/css/style.css'; // Import your CSS styles
 import axios from "axios";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx"; 
+// Import child components
+import Machine from './Machine';
+import Operator from './Operator';
+import Line from './Line';
 
 // Table Headers for Consolidated Report
 const tableHeaders = [
@@ -27,9 +31,8 @@ const tableHeaders = [
   "STR Log ID",
   "Device ID",
   "Reserve",
-    "Created At"
+  "Created At"
 ];
-
 
 const pieColors = [
   "#3182ce",
@@ -59,32 +62,69 @@ export default function Consolidated() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [operatorId, setOperatorId] = useState("");
-  const [operatorOptions, setOperatorOptions] = useState([]);
+  const [selectedFilter, setSelectedFilter] = useState(""); // Renamed from operatorId
+  
+  // New state variables for additional filters
+  const [machineId, setMachineId] = useState("");
+  const [selectedOperatorId, setSelectedOperatorId] = useState("");
+  const [lineId, setLineId] = useState("");
+  const [machineOptions, setMachineOptions] = useState([]);
+  const [operatorIdOptions, setOperatorIdOptions] = useState([]);
+  const [lineOptions, setLineOptions] = useState([]);
   const rowsPerPage = 10;
   const [filtersActive, setFiltersActive] = useState(false);
 
-  // Dynamically fetch consolidated IDs for dropdown
-  useEffect(() => {
-    axios
-      .get("http://localhost:8000/api/poppys-consolidated-logs/")
+  // State to track which view to show
+  const [currentView, setCurrentView] = useState('summary'); // 'summary', 'machine', 'operator', 'line'
+
+  // Filter options for the main dropdown
+  const filterOptions = [
+    { value: "machine", label: "Machine" },
+    { value: "operator", label: "Operator" },
+    { value: "line", label: "Line" }
+  ];
+// Dynamically fetch consolidated IDs for dropdown
+useEffect(() => {
+  // Fetch for Machine view
+  if (currentView === 'machine' || currentView === 'summary') {
+    axios.get("http://localhost:8000/api/machine-report/")
       .then(res => {
-        const ids = (res.data.summary || []).map(row => row["Consolidated ID"]);
-        setOperatorOptions([...new Set(ids)]);
+        // Fix: Use correct field name from Machine Report API
+        const machines = (res.data.summary || []).map(row => row["Machine ID"] || row["machine_id"] || row.machine_id).filter(Boolean);
+        setMachineOptions([...new Set(machines)]);
       })
-      .catch(() => setOperatorOptions([]));
-  }, [from, to, operatorId]);
+      .catch(() => setMachineOptions([]));
+  }
+
+  // Fetch for Operator view
+  if (currentView === 'operator' || currentView === 'summary') {
+    axios.get("http://localhost:8000/api/operator-report/")
+      .then(res => {
+        // Fix: Use correct field name from Operator Report API
+        const operators = (res.data.summary || []).map(row => row["Operator ID"] || row["operator_id"] || row.operator_id).filter(Boolean);
+        setOperatorIdOptions([...new Set(operators)]);
+      })
+      .catch(() => setOperatorIdOptions([]));
+  }
+
+  // Fetch for Line view
+  if (currentView === 'line' || currentView === 'summary') {
+    axios.get("http://localhost:8000/api/line-report/")
+      .then(res => {
+        // Fix: Use correct field name from Line Report API
+        const lines = (res.data.summary || []).map(row => row["Line Number"] || row["line_number"] || row.line_number || row["Line ID"] || row.line_id).filter(Boolean);
+        setLineOptions([...new Set(lines)]);
+      })
+      .catch(() => setLineOptions([]));
+  }
+}, [currentView]);
 
   // Fetch data from backend
   const fetchData = async () => {
     setLoading(true);
     try {
       const params = {};
-      // if (from) params.date = from;
-      // if (operatorId) params.operator_id = operatorId;
-      // ...existing code...
       const res = await axios.get("http://localhost:8000/api/consolidated-report/");
-      // ...existing code...
 
       const backendRows = res.data.summary || [];
       const mappedRows = backendRows.map((row, idx) => {
@@ -115,20 +155,8 @@ export default function Consolidated() {
     }
     setLoading(false);
   };
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-consolidated
-  }, [from, to, operatorId]);
 
-  // Filter by search, from, to
-  /* const filtered = data.filter(
-    (row) =>
-      (!search || (row.date && row.date.includes(search))) &&
-      (!from || (row.date && row.date >= from)) &&
-      (!to || (row.date && row.date <= to))
-  ); */
-
-  const filtered = data; // Use the fetched data directly for now
+  const filtered = data;
   const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const paginated = filtered.slice(
     (page - 1) * rowsPerPage,
@@ -164,9 +192,51 @@ export default function Consolidated() {
     setTo("");
     setSearch("");
     setPage(1);
-    setOperatorId("");
+    setSelectedFilter("");
+    setMachineId("");
+    setSelectedOperatorId("");
+    setLineId("");
     setFiltersActive(false);
-    fetchData();
+    setCurrentView('summary');
+    setData([]); // Clear data to show empty table
+  };
+
+  const handleResetFilters = () => {
+    setMachineId("");
+    setSelectedOperatorId("");
+    setLineId("");
+    setCurrentView('summary');
+  };
+
+  const handleResetAll = () => {
+    setFrom("");
+    setTo("");
+    setSearch("");
+    setPage(1);
+    setSelectedFilter("");
+    setMachineId("");
+    setSelectedOperatorId("");
+    setLineId("");
+    setFiltersActive(false);
+    setCurrentView('summary');
+    setData([]); // Clear data to show empty table
+  };
+
+  const handleGenerate = () => {
+    setPage(1);
+    setFiltersActive(true);
+    
+    // Determine which view to show based on selected filters
+    if (selectedFilter === 'machine' || machineId) {
+      setCurrentView('machine');
+    } else if (selectedFilter === 'operator' || selectedOperatorId) {
+      setCurrentView('operator');
+    } else if (selectedFilter === 'line' || lineId) {
+      setCurrentView('line');
+    } else {
+      setCurrentView('summary');
+      fetchData(); // Only fetch summary data if no specific filter is selected
+    }
   };
 
   const handleCSV = () => {
@@ -174,22 +244,24 @@ export default function Consolidated() {
       tableHeaders.join(","),
       ...filtered.map((row, idx) =>
         [
-          row.date,
-          row.operatorId,
-          row.operatorName,
-          row.totalHours,
-          row.sewing,
-          row.idle,
-          row.rework,
-          row.noFeeding,
-          row.meeting,
-          row.maintenance,
-          row.needleBreak,
-          row.pt,
-          row.npt,
-          row.needleRuntime,
-          row.sewingSpeed,
-          row.stitchCount,
+          idx + 1,
+          row.operatorId || "",
+          row.operatorName || "",
+          row.operatorName || "",
+          row.operatorId || "",
+          row.date || "",
+          "-",
+          "-",
+          "-",
+          "-",
+          row.stitchCount || "",
+          row.needleRuntime || "",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
         ].join(",")
       ),
     ].join("\n");
@@ -197,7 +269,7 @@ export default function Consolidated() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "operator_report.csv";
+    a.download = "consolidated_report.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -209,26 +281,30 @@ export default function Consolidated() {
           <tr>${tableHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>
         </thead>
         <tbody>
-          ${filtered
+          ${filtered.length === 0 ? 
+            `<tr><td colspan="${tableHeaders.length}" style="text-align: center;">No data to display</td></tr>` :
+            filtered
             .map(
               (row, idx) => `
             <tr>
-              <td>${row.date}</td>
-              <td>${row.operatorId}</td>
-              <td>${row.operatorName}</td>
-              <td>${row.totalHours}</td>
-              <td>${row.sewing}</td>
-              <td>${row.idle}</td>
-              <td>${row.rework}</td>
-              <td>${row.noFeeding}</td>
-              <td>${row.meeting}</td>
-              <td>${row.maintenance}</td>
-              <td>${row.needleBreak}</td>
-              <td>${row.pt}</td>
-              <td>${row.npt}</td>
-              <td>${row.needleRuntime}</td>
-              <td>${row.sewingSpeed}</td>
-              <td>${row.stitchCount}</td>
+              <td>${idx + 1}</td>
+              <td>${row.operatorId || ""}</td>
+              <td>${row.operatorName || ""}</td>
+              <td>${row.operatorName || ""}</td>
+              <td>${row.operatorId || ""}</td>
+              <td>${row.date || ""}</td>
+              <td>-</td>
+              <td>-</td>
+              <td>-</td>
+              <td>-</td>
+              <td>${row.stitchCount || ""}</td>
+              <td>${row.needleRuntime || ""}</td>
+              <td>-</td>
+              <td>-</td>
+              <td>-</td>
+              <td>-</td>
+              <td>-</td>
+              <td>-</td>
             </tr>
           `
             )
@@ -240,7 +316,7 @@ export default function Consolidated() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "operator_report.html";
+    a.download = "consolidated_report.html";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -277,23 +353,27 @@ export default function Consolidated() {
 
   return (
     <div className="machine-root">
-      {/* Title and Buttons Row */}
+      {/* Title and Buttons Row - Always Static */}
       <div className="machine-title-row">
         <div className="machine-title">
           Consolidated Table
         </div>
         <div className="machine-title-btns">
+          {/* Export Buttons - Only One Set */}
           <button
             type="button"
             className="machine-btn machine-btn-csv"
             onClick={handleCSV}
+            style={{ height: 41, display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <SiMicrosoftexcel className="machine-btn-icon" /> CSV
+            <SiMicrosoftexcel className="machine-btn-icon" />
+            CSV
           </button>
           <button
             type="button"
             className="machine-btn machine-btn-html"
             onClick={handleHTML}
+            style={{ height: 41, display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <FaDownload className="machine-btn-icon" />
             HTML
@@ -302,6 +382,7 @@ export default function Consolidated() {
             type="button"
             className="machine-btn machine-btn-raw"
             onClick={handleRawData}
+            style={{ height: 41, display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <FaDownload className="machine-btn-icon" />
             View Raw Data
@@ -309,10 +390,9 @@ export default function Consolidated() {
         </div>
       </div>
 
-      {/* Table Card */}
-      <div className="machine-table-card">
-        {/* Filters and Actions inside table card */}
-        <div className="machine-header-actions" style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
+      {/* Filter Dropdowns Row - Always Visible at Top Left */}
+      <div className="machine-table-card" style={{ marginBottom: '16px', padding: '16px' }}>
+        <div className="machine-header-actions" style={{ display: "flex", justifyContent: "flex-start", alignItems: "center" }}>
           <div style={{ display: "flex", gap: 25, alignItems: "center", flexWrap: "wrap" }}>
             <div className="date-input-group" style={{ display: "flex", gap: 8 }}>
               <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -338,156 +418,231 @@ export default function Consolidated() {
                 <span className="date-label" style={{ fontSize: 12 }}>To</span>
               </div>
             </div>
-            <select
-              value={operatorId}
-              onChange={(e) => setOperatorId(e.target.value)}
+
+            {/* Filter Dropdowns - Always Visible and Always Enabled */}
+
+  <select
+              value={selectedFilter}
+              onChange={(e) => setSelectedFilter(e.target.value)}
               className="machine-select"
-              style={{ minWidth: 120, height: 42, fontSize: 14 }}
+              style={{ minWidth: 140, height: 42, fontSize: 13, padding: 5 }}
             >
-              <option value="">Select Consolidated ID</option>
-              {operatorOptions.map((id) => (
+              <option value="">Select Filter</option>
+              {filterOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+
+
+            <select
+              value={machineId}
+              onChange={(e) => setMachineId(e.target.value)}
+              className="machine-select"
+              style={{ minWidth: 140, height: 42, fontSize: 13, padding: 5}}
+            >
+              <option value="">Select Machine ID</option>
+              {machineOptions.map((id) => (
                 <option key={id} value={id}>{id}</option>
               ))}
             </select>
+            
+            <select
+              value={selectedOperatorId}
+              onChange={(e) => setSelectedOperatorId(e.target.value)}
+              className="machine-select"
+              style={{ minWidth: 140, height: 42, fontSize: 13, padding: 5 }}
+            >
+              <option value="">Select Operator ID</option>
+              {operatorIdOptions.map((id) => (
+                <option key={id} value={id}>{id}</option>
+              ))}
+            </select>
+            
+            <select
+              value={lineId}
+              onChange={(e) => setLineId(e.target.value)}
+              className="machine-select"
+              style={{ minWidth: 120, height: 42, fontSize: 13, padding:5 }}
+            >
+              <option value="">Select Line ID</option>
+              {lineOptions.map((id) => (
+                <option key={id} value={id}>{id}</option>
+              ))}
+            </select>
+
+          
             <button
               type="button"
               className="machine-btn machine-btn-blue machine-btn-generate"
-              onClick={() => {
-                setPage(1);
-                setFiltersActive(true);
-                fetchData();
-              }}  >
+              onClick={handleGenerate}
+            >
               Generate
             </button>
 
             <button
               type="button"
-              className="machine-btn machine-btn-red machine-btn-reset"
-              onClick={handleReset}
-              style={{ height: 32, fontSize: 14, padding: "0 16px" }}
+              className="machine-btn machine-btn-orange"
+              onClick={handleResetFilters}
+              style={{ height: 41, fontSize: 14, padding: "0 16px" }}
             >
-              Reset
+              Reset Filters
+            </button>
+
+            <button
+              type="button"
+              className="machine-btn machine-btn-red"
+              onClick={handleResetAll}
+              style={{ height: 41, fontSize: 14, padding: "0 16px" }}
+            >
+              Reset All
             </button>
           </div>
         </div>
+      </div>
 
-        <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
-          <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
-            <thead>
-              <tr>
-                {tableHeaders.map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      whiteSpace: "nowrap",
-                      padding: "8px 12px",
-                      textAlign: "center",
-                      border: "1px solid #e2e8f0",
-                      background: "#d3edff",
-                      fontWeight: 600,
-                      fontSize: "15px",
-                      minWidth: "110px",
-                      color: "#000",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paginated.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={tableHeaders.length}
-                    className="machine-table-nodata"
-                  >
-                    No data found.
-                  </td>
-                </tr>
-              ) : (
-                paginated.map((row, idx) => (
-                  <tr key={idx}>
-                    <td>{row.date}</td>
-                    <td>{row.operatorId}</td>
-                    <td>{row.operatorName}</td>
-                    <td>{row.totalHours}</td>
-                    <td>{row.sewing}</td>
-                    <td>{row.idle}</td>
-                    <td>{row.rework}</td>
-                    <td>{row.noFeeding}</td>
-                    <td>{row.meeting}</td>
-                    <td>{row.maintenance}</td>
-                    <td>{row.needleBreak}</td>
-                    <td>{row.pt + " %"}</td>
-                    <td>{row.npt + " %"}</td>
-                    <td>{row.needleRuntime + " %"}</td>
-                    <td>{row.sewingSpeed}</td>
-                    <td>{row.stitchCount}</td>
+      {/* Render different views based on currentView */}
+      {currentView === 'machine' && (
+        <Machine
+          key={`machine-${from}-${to}-${machineId}-${selectedOperatorId}-${lineId}`} 
+          tableOnly={true} 
+          from={from}
+          to={to}
+          machineId={machineId}
+          selectedOperatorId={selectedOperatorId}
+          lineId={lineId}
+        />
+      )}
+
+      {currentView === 'operator' && (
+        <Operator
+          key={`operator-${from}-${to}-${machineId}-${selectedOperatorId}-${lineId}`} 
+          tableOnly={true} 
+          from={from}
+          to={to}
+          machineId={machineId}
+          selectedOperatorId={selectedOperatorId}
+          lineId={lineId}
+        />
+      )}
+
+      {currentView === 'line' && (
+        <Line 
+          key={`line-${from}-${to}-${machineId}-${selectedOperatorId}-${lineId}`}
+          tableOnly={false} 
+          from={from}
+          to={to}
+          machineId={machineId}
+          selectedOperatorId={selectedOperatorId}
+          lineId={lineId}
+        />
+      )}
+
+      {currentView === 'summary' && (
+        <>
+          {/* Table Card */}
+          <div className="machine-table-card">
+            <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
+              <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
+                <thead>
+                  <tr>
+                    {tableHeaders.map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          whiteSpace: "nowrap",
+                          padding: "8px 12px",
+                          textAlign: "center",
+                          border: "1px solid #e2e8f0",
+                          background: "#d3edff",
+                          fontWeight: 600,
+                          fontSize: "15px",
+                          minWidth: "110px",
+                          color: "#000",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        <Pagination />
-      </div>
-
-      {/* Tiles Row - End to End */}
-      <div className="machine-tiles-row machine-tiles-row-full">
-        {tileData.map((tile, idx) => (
-          <div
-            className={`machine-tile machine-tile-shade ${tile.bg} ${tile.color}`}
-            key={tile.label}
-          >
-            <div className="machine-tile-label">{tile.label}</div>
-            <div className="machine-tile-value">{tile.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Pie Chart Card - Full width */}
-      <div className="machine-pie-card machine-pie-card-full">
-        <div className="machine-pie-chart machine-pie-chart-large">
-          <ResponsiveContainer width="100%" height={380}>
-            <PieChart>
-              <Pie
-                data={getPieData(pieRow)}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={170}
-                innerRadius={100}
-                labelLine={false}
-                label={({ name }) => name}
-              >
-                {getPieData(pieRow).map((_, i) => (
-                  <Cell key={i} fill={pieColors[i % pieColors.length]} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="machine-pie-info">
-          {getPieData(pieRow).map((item, idx) => (
-            <div className="machine-pie-label" key={item.name}>
-              <span
-                className="machine-pie-dot"
-                style={{
-                  background: pieColors[idx % pieColors.length],
-                }}
-              ></span>
-              <span className="machine-pie-name">
-                {item.name}:
-              </span>
-              <span className="machine-pie-value">
-                {item.value} hrs
-              </span>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td
+                      colSpan={tableHeaders.length}
+                      className="machine-table-nodata"
+                      style={{
+                        textAlign: "center",
+                        padding: "20px",
+                        fontStyle: "italic",
+                        color: "#666"
+                      }}
+                    >
+                      {loading ? "Loading..." : "No data to display"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          ))}
-        </div>
-      </div>
+            <Pagination />
+          </div>
+
+          {/* Tiles Row - End to End */}
+          <div className="machine-tiles-row machine-tiles-row-full">
+            {tileData.map((tile, idx) => (
+              <div
+                className={`machine-tile machine-tile-shade ${tile.bg} ${tile.color}`}
+                key={tile.label}
+              >
+                <div className="machine-tile-label">{tile.label}</div>
+                <div className="machine-tile-value">{tile.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Pie Chart Card - Full width */}
+          <div className="machine-pie-card machine-pie-card-full">
+            <div className="machine-pie-chart machine-pie-chart-large">
+              <ResponsiveContainer width="100%" height={380}>
+                <PieChart>
+                  <Pie
+                    data={getPieData(pieRow)}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={170}
+                    innerRadius={100}
+                    labelLine={false}
+                    label={({ name }) => name}
+                  >
+                    {getPieData(pieRow).map((_, i) => (
+                      <Cell key={i} fill={pieColors[i % pieColors.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="machine-pie-info">
+              {getPieData(pieRow).map((item, idx) => (
+                <div className="machine-pie-label" key={item.name}>
+                  <span
+                    className="machine-pie-dot"
+                    style={{
+                      background: pieColors[idx % pieColors.length],
+                    }}
+                  ></span>
+                  <span className="machine-pie-name">
+                    {item.name}:
+                  </span>
+                  <span className="machine-pie-value">
+                    {item.value} hrs
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

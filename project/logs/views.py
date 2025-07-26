@@ -97,6 +97,7 @@ class PoppysMachineLogListView(generics.ListAPIView):
 """ Condition 4 - Break Exclusion - allow to post data without any restrictions via POSTMAN and restrict the GET method to Poppys users only """
 """ Condition 5 - Modes of 7 """
 
+""" Module 1 - Machine Report """ 
 class MachineReport(APIView):    
 
     def get(self, request, *args, **kwargs):
@@ -1226,3 +1227,1342 @@ class MachineReport(APIView):
             "tile4_total_hours": tile4_total_hours  # ✅ Add Tile 4 data to response
         })
         
+""" Module 1 - Machine Report - Raw Data"""   
+    # ...existing code...
+    
+class MachineRawDataReport(APIView):
+        """
+        Raw Machine Data Report - Returns unprocessed machine logs
+        """
+        
+        def get(self, request, *args, **kwargs):
+            machine_id_filter = request.query_params.get('machine_id')
+            date_str = request.query_params.get('date')
+            from_str = request.query_params.get('from')
+            to_str = request.query_params.get('to')
+    
+            logger.info("=== RAW DATA REQUEST ===")
+            logger.info(f"Parameters: machine_id={machine_id_filter}, date={date_str}, from={from_str}, to={to_str}")
+    
+            # Build query
+            logs = MachineLog.objects.all()
+    
+            # Apply filters
+            if from_str and to_str:
+                logs = logs.filter(DATE__gte=from_str, DATE__lte=to_str)
+            elif date_str:
+                logs = logs.filter(DATE=date_str)
+                
+            if machine_id_filter:
+                logs = logs.filter(MACHINE_ID=machine_id_filter)
+    
+            # Convert to raw data format
+            raw_data = []
+            for idx, log in enumerate(logs, 1):
+                raw_data.append({
+                    "S.No": idx,
+                    "Machine ID": log.MACHINE_ID,
+                    "Line Number": getattr(log, 'LINE_NUMB', ''),
+                    "Operator ID": getattr(log, 'OPERATOR_ID', ''),
+                    "Date": log.DATE,
+                    "Start Time": log.START_TIME.strftime("%H:%M:%S") if log.START_TIME else "",
+                    "End Time": log.END_TIME.strftime("%H:%M:%S") if log.END_TIME else "",
+                    "Mode": log.MODE,
+                    "Mode Description": MODES.get(log.MODE, f"Unknown Mode {log.MODE}"),
+                    "Stitch Count": getattr(log, 'STITCH_COUNT', 0),
+                    "Needle Runtime": getattr(log, 'NEEDLE_RUNTIME', 0),
+                    "Needle Stop Time": getattr(log, 'NEEDLE_STOP_TIME', ''),
+                    "Duration": "",  # Calculate if needed
+                    "SPM": getattr(log, 'RESERVE', 0),
+                    "Calculation Value": getattr(log, 'RESERVE', 0),
+                    "TX Log ID": getattr(log, 'Tx_LOGID', ''),
+                    "STR Log ID": getattr(log, 'Str_LOGID', ''),
+                    "Created At": getattr(log, 'created_at', '').strftime("%Y-%m-%d %H:%M:%S") if hasattr(log, 'created_at') and getattr(log, 'created_at') else ""
+                })
+    
+            logger.info(f"Raw data records returned: {len(raw_data)}")
+            
+            return Response({
+                "raw_data": raw_data,
+                "total_records": len(raw_data)
+            })
+    
+    # ...existing code...    
+        
+""" Module 2 - Line Report """     
+class LineReport(APIView):
+        """
+        Line Report Module - Comprehensive Analysis
+        
+        This module provides line-wise analysis similar to machine reports but aggregated by LINE_NUMB.
+        Each line can have multiple machines, and the report shows consolidated data per line.
+        
+        Key Features:
+        - Line-wise aggregation of machine data
+        - Mode-based hour calculations (1-7)
+        - Productive vs Non-Productive Time analysis
+        - Needle runtime and sewing speed calculations
+        - Machine count per line tracking
+        """
+
+        def get(self, request, *args, **kwargs):
+            """
+            Generate Line Report with comprehensive analytics
+            
+            Query Parameters:
+            - line_id: Filter by specific line number
+            - date: Filter by specific date
+            - from: Start date for date range
+            - to: End date for date range
+            """
+            
+            # ===== PARAMETER EXTRACTION =====
+            line_id_filter = request.query_params.get('line_id')
+            date_str = request.query_params.get('date')
+            from_str = request.query_params.get('from')
+            to_str = request.query_params.get('to')
+
+            logger.info("=== LINE REPORT MODULE STARTED ===")
+            logger.info(f"Parameters: line_id={line_id_filter}, date={date_str}, from={from_str}, to={to_str}")
+
+            # ===== DATE RANGE DETERMINATION =====
+            # Determine which dates to process based on parameters
+            if from_str and to_str:
+                # Date range mode: Process all dates between from and to
+                report_dates = MachineLog.objects.filter(
+                    DATE__gte=from_str, 
+                    DATE__lte=to_str
+                ).values_list('DATE', flat=True).distinct()
+                logger.info(f"Date range mode: {from_str} to {to_str}, found {len(report_dates)} unique dates")
+            elif date_str:
+                # Single date mode: Process only the specified date
+                report_dates = [date_str]
+                logger.info(f"Single date mode: {date_str}")
+            else:
+                # All dates mode: Process all available dates
+                report_dates = MachineLog.objects.values_list('DATE', flat=True).distinct()
+                logger.info(f"All dates mode: found {len(report_dates)} unique dates")
+
+            # ===== TIME WINDOW & BREAK DEFINITIONS =====
+            # Define working hours and break periods (same as machine module for consistency)
+            start_window = time(8, 30)   # Work starts at 08:30
+            end_window = time(19, 30)    # Work ends at 19:30
+            breaks = [
+                (time(10, 30), time(10, 40)),  # Morning break: 10:30-10:40
+                (time(13, 20), time(14, 0)),   # Lunch break: 13:20-14:00
+                (time(16, 20), time(16, 30)),  # Evening break: 16:20-16:30
+            ]
+            
+            logger.info("=== TIME WINDOW CONFIGURATION ===")
+            logger.info(f"Working Hours: {start_window.strftime('%H:%M')} - {end_window.strftime('%H:%M')}")
+            logger.info(f"Break Periods: {[(b[0].strftime('%H:%M'), b[1].strftime('%H:%M')) for b in breaks]}")
+
+            # ===== DATA STRUCTURES INITIALIZATION =====
+            line_report = {}           # Main data aggregation by line
+            excluded_logs = []         # Track excluded log entries
+            calculation_logs = {}      # Detailed calculation tracking
+            
+            logger.info("=== DATA PROCESSING STARTED ===")
+
+            # ===== MAIN DATA PROCESSING LOOP =====
+            for report_date in report_dates:
+                logger.info(f"\n--- Processing Date: {report_date} ---")
+                
+                # Fetch all logs for the current date
+                logs = MachineLog.objects.filter(DATE=report_date)
+                logger.info(f"Initial logs count for date {report_date}: {logs.count()}")
+                
+                # Apply line filter if specified
+                if line_id_filter:
+                    logs = logs.filter(LINE_NUMB=line_id_filter)
+                    logger.info(f"Filtered logs by LINE_NUMB={line_id_filter}: {logs.count()}")
+
+                logs = list(logs)  # Convert to list for processing
+
+                # ===== LOG VALIDATION AND PROCESSING =====
+                for log in logs:
+                    logger.info(f"Processing log: LINE={log.LINE_NUMB}, MACHINE={log.MACHINE_ID}, MODE={log.MODE}")
+                    
+                    try:
+                        # Parse start and end times
+                        st = log.START_TIME if isinstance(log.START_TIME, time) else datetime.strptime(str(log.START_TIME), "%H:%M:%S").time()
+                        et = log.END_TIME if isinstance(log.END_TIME, time) else datetime.strptime(str(log.END_TIME), "%H:%M:%S").time()
+                    except Exception as e:
+                        logger.error(f"Error parsing times for log {getattr(log, 'id', 'N/A')}: {e}")
+                        continue
+
+                    # ===== TIME WINDOW VALIDATION =====
+                    # Store original times for exclusion tracking
+                    original_st, original_et = st, et
+                    
+                    # Check if start time is before main window (before 08:30)
+                    if st < start_window:
+                        outside_end = min(et, start_window)
+                        duration_seconds = (datetime.combine(report_date, outside_end) - datetime.combine(report_date, st)).total_seconds()
+                        hh, mm = divmod(int(duration_seconds // 60), 60)
+                        
+                        excluded_logs.append({
+                            "LINE_NUMB": log.LINE_NUMB,
+                            "MACHINE_ID": log.MACHINE_ID,
+                            "START_TIME": st.strftime("%H:%M"),
+                            "END_TIME": outside_end.strftime("%H:%M"),
+                            "REASON": f"Outside main window (before {start_window.strftime('%H:%M')})",
+                            "Excluded_Duration": f"{hh:02d}:{mm:02d}"
+                        })
+                        logger.info(f"Excluded (Before main window): LINE={log.LINE_NUMB}, MACHINE={log.MACHINE_ID}, TIME={st.strftime('%H:%M')}–{outside_end.strftime('%H:%M')}")
+                        st = max(st, start_window)
+                    
+                    # Check if end time is after main window (after 19:30)
+                    if et > end_window:
+                        outside_start = max(st, end_window)
+                        duration_seconds = (datetime.combine(report_date, et) - datetime.combine(report_date, outside_start)).total_seconds()
+                        hh, mm = divmod(int(duration_seconds // 60), 60)
+                        
+                        excluded_logs.append({
+                            "LINE_NUMB": log.LINE_NUMB,
+                            "MACHINE_ID": log.MACHINE_ID,
+                            "START_TIME": outside_start.strftime("%H:%M"),
+                            "END_TIME": et.strftime("%H:%M"),
+                            "REASON": f"Outside main window (after {end_window.strftime('%H:%M')})",
+                            "Excluded_Duration": f"{hh:02d}:{mm:02d}"
+                        })
+                        logger.info(f"Excluded (After main window): LINE={log.LINE_NUMB}, MACHINE={log.MACHINE_ID}, TIME={outside_start.strftime('%H:%M')}–{et.strftime('%H:%M')}")
+                        et = min(et, end_window)
+                    
+                    # Skip if no valid time remains after window adjustment
+                    if st >= et:
+                        logger.info(f"Log skipped - no valid time remaining: LINE={log.LINE_NUMB}, MACHINE={log.MACHINE_ID}")
+                        continue
+
+                    # ===== BREAK TIME EXCLUSION =====
+                    # Calculate overlap with break periods and exclude from work time
+                    total_break_overlap = 0
+                    excluded_parts = []
+                    
+                    for b_start, b_end in breaks:
+                        # Find overlap between log time and break time
+                        latest_start = max(st, b_start)
+                        earliest_end = min(et, b_end)
+                        
+                        if latest_start < earliest_end:
+                            # Calculate overlap duration
+                            overlap_seconds = (datetime.combine(report_date, earliest_end) - datetime.combine(report_date, latest_start)).total_seconds()
+                            total_break_overlap += overlap_seconds
+
+                            hh, mm = divmod(int(overlap_seconds // 60), 60)
+                            
+                            excluded_parts.append({
+                                "LINE_NUMB": log.LINE_NUMB,
+                                "MACHINE_ID": log.MACHINE_ID,
+                                "START_TIME": latest_start.strftime("%H:%M"),
+                                "END_TIME": earliest_end.strftime("%H:%M"),
+                                "REASON": f"Break overlap with {b_start.strftime('%H:%M')} - {b_end.strftime('%H:%M')}",
+                                "Break_Time_Excluded": f"{hh:02d}:{mm:02d}"
+                            })
+                            logger.info(f"Excluded (Break overlap): LINE={log.LINE_NUMB}, MACHINE={log.MACHINE_ID}, TIME={latest_start.strftime('%H:%M')}–{earliest_end.strftime('%H:%M')}")
+
+                    excluded_logs.extend(excluded_parts)
+
+                    # ===== FINAL DURATION CALCULATION =====
+                    # Calculate net working duration after all exclusions
+                    duration_seconds = (datetime.combine(report_date, et) - datetime.combine(report_date, st)).total_seconds()
+                    duration = duration_seconds / 3600.0  # Convert to hours
+                    duration -= total_break_overlap / 3600.0  # Subtract break time
+                    
+                    logger.info(f"Duration calculation: LINE={log.LINE_NUMB}, MACHINE={log.MACHINE_ID}")
+                    logger.info(f"  Raw duration: {duration_seconds/3600.0:.4f} hours")
+                    logger.info(f"  Break overlap: {total_break_overlap/3600.0:.4f} hours")
+                    logger.info(f"  Net duration: {duration:.4f} hours")
+
+                    # Skip if duration is not positive
+                    if duration <= 0:
+                        logger.info(f"Log skipped - non-positive duration: LINE={log.LINE_NUMB}, MACHINE={log.MACHINE_ID}")
+                        continue
+
+                    # ===== LINE REPORT AGGREGATION =====
+                    # Create unique key for line and date combination
+                    line_number = log.LINE_NUMB
+                    report_key = f"{report_date}_{line_number}"
+                    
+                    # Initialize line data structure if not exists
+                    if report_key not in line_report:
+                        line_report[report_key] = {
+                            "date": report_date,
+                            "line_number": line_number,
+                            "machines": set(),  # Track unique machines in this line
+                            # Mode-based hour tracking
+                            "Sewing Hours": 0,      # Mode 1
+                            "Idle Hours": 0,        # Mode 2  
+                            "No feeding Hours": 0,  # Mode 3
+                            "Meeting Hours": 0,     # Mode 4
+                            "Maintenance Hours": 0, # Mode 5
+                            "Rework Hours": 0,      # Mode 6
+                            "Needle Break": 0,      # Mode 7
+                            # Additional metrics
+                            "Needle Run Time": 0,   # Seconds
+                            "Total SPM": 0,         # Sum of all SPM values
+                            "SPM Instances": 0,     # Count of SPM instances
+                            "Stitch Count": 0,      # Sum of stitch counts
+                        }
+                        calculation_logs[report_key] = []
+
+                    # Add machine to the set (for unique count)
+                    line_report[report_key]["machines"].add(log.MACHINE_ID)
+
+                    # ===== MODE-BASED AGGREGATION =====
+                    # Aggregate hours based on machine mode
+                    mode = log.MODE
+                    reserve = float(getattr(log, "RESERVE", 0) or 0)
+                    needle_runtime = float(getattr(log, "NEEDLE_RUNTIME", 0) or 0)
+                    stitch_count = int(getattr(log, "STITCH_COUNT", 0) or 0)
+                    
+                    logger.info(f"Mode-based aggregation: LINE={line_number}, MODE={mode}, DURATION={duration:.4f}h")
+
+                    # Mode 1: Sewing (Productive Time)
+                    if mode == 1:
+                        line_report[report_key]["Sewing Hours"] += duration
+                        line_report[report_key]["Needle Run Time"] += needle_runtime
+                        line_report[report_key]["Stitch Count"] += stitch_count
+                        logger.info(f"  Added to Sewing: {duration:.4f}h")
+                    
+                    # Mode 2: Idle (Non-Productive Time)
+                    elif mode == 2:
+                        line_report[report_key]["Idle Hours"] += duration
+                        logger.info(f"  Added to Idle: {duration:.4f}h")
+                    
+                    # Mode 3: No feeding (Non-Productive Time)
+                    elif mode == 3:
+                        line_report[report_key]["No feeding Hours"] += duration
+                        logger.info(f"  Added to No feeding: {duration:.4f}h")
+                    
+                    # Mode 4: Meeting (Non-Productive Time)
+                    elif mode == 4:
+                        line_report[report_key]["Meeting Hours"] += duration
+                        logger.info(f"  Added to Meeting: {duration:.4f}h")
+                    
+                    # Mode 5: Maintenance (Non-Productive Time)
+                    elif mode == 5:
+                        line_report[report_key]["Maintenance Hours"] += duration
+                        logger.info(f"  Added to Maintenance: {duration:.4f}h")
+                    
+                    # Mode 6: Rework (Non-Productive Time)
+                    elif mode == 6:
+                        line_report[report_key]["Rework Hours"] += duration
+                        logger.info(f"  Added to Rework: {duration:.4f}h")
+                    
+                    # Mode 7: Needle Break (Non-Productive Time)
+                    elif mode == 7:
+                        line_report[report_key]["Needle Break"] += duration
+                        logger.info(f"  Added to Needle Break: {duration:.4f}h")
+
+                    # ===== SPM AGGREGATION (ALL MODES) =====
+                    # Collect SPM data from all modes (not just sewing)
+                    if reserve > 0:
+                        line_report[report_key]["Total SPM"] += reserve
+                        line_report[report_key]["SPM Instances"] += 1
+                        logger.info(f"  Added SPM: {reserve:.2f} (Total instances: {line_report[report_key]['SPM Instances']})")
+
+            # ===== SUMMARY GENERATION =====
+            logger.info("\n=== GENERATING LINE SUMMARY ===")
+            summary = []
+            
+            # Helper function to format hours to HH:MM
+            def hours_to_hhmm(hours):
+                h = int(hours)
+                m = int(round((hours - h) * 60))
+                return f"{h:02d}:{m:02d}"
+
+            # Process each line's aggregated data
+            for idx, (report_key, data) in enumerate(line_report.items(), 1):
+                logger.info(f"\n--- Processing Line Summary {idx}: {report_key} ---")
+                
+                # ===== BASIC CALCULATIONS =====
+                # Calculate Productive Time (PT) - only sewing is productive
+                PT = data["Sewing Hours"]
+                
+                # Calculate Non-Productive Time (NPT) - all other modes
+                NPT = (data["Idle Hours"] + data["No feeding Hours"] + data["Meeting Hours"] + 
+                    data["Maintenance Hours"] + data["Rework Hours"] + data["Needle Break"])
+                
+                # Calculate Total Hours
+                total_hours = PT + NPT
+                
+                logger.info(f"Time calculations for Line {data['line_number']}:")
+                logger.info(f"  Productive Time (Sewing): {PT:.4f} hours")
+                logger.info(f"  Non-Productive Time (Others): {NPT:.4f} hours")
+                logger.info(f"  Total Hours: {total_hours:.4f} hours")
+
+                # ===== PERCENTAGE CALCULATIONS =====
+                # Calculate PT and NPT percentages
+                pt_percentage = (PT / total_hours * 100) if total_hours > 0 else 0
+                npt_percentage = (NPT / total_hours * 100) if total_hours > 0 else 0
+                
+                logger.info(f"Percentage calculations:")
+                logger.info(f"  PT %: ({PT:.4f} / {total_hours:.4f}) × 100 = {pt_percentage:.2f}%")
+                logger.info(f"  NPT %: ({NPT:.4f} / {total_hours:.4f}) × 100 = {npt_percentage:.2f}%")
+
+                # ===== NEEDLE RUNTIME CALCULATION =====
+                # Calculate needle runtime percentage
+                needle_runtime_secs = data["Needle Run Time"]  # Already in seconds
+                PT_secs = PT * 3600  # Convert PT hours to seconds
+                needle_time_pct = (needle_runtime_secs / PT_secs * 100) if PT_secs > 0 else 0
+                
+                logger.info(f"Needle runtime calculation:")
+                logger.info(f"  Needle runtime: {needle_runtime_secs:.2f} seconds")
+                logger.info(f"  Productive time: {PT_secs:.2f} seconds")
+                logger.info(f"  Needle runtime %: ({needle_runtime_secs:.2f} / {PT_secs:.2f}) × 100 = {needle_time_pct:.2f}%")
+
+                # ===== SEWING SPEED CALCULATION =====
+                # Calculate average sewing speed (SPM)
+                sewing_speed = (data["Total SPM"] / data["SPM Instances"]) if data["SPM Instances"] > 0 else 0
+                
+                logger.info(f"Sewing speed calculation:")
+                logger.info(f"  Total SPM: {data['Total SPM']:.2f}")
+                logger.info(f"  SPM instances: {data['SPM Instances']}")
+                logger.info(f"  Average SPM: {data['Total SPM']:.2f} / {data['SPM Instances']} = {sewing_speed:.2f}")
+
+                # ===== MACHINE COUNT CALCULATION =====
+                # Count unique machines in this line
+                machine_count = len(data["machines"])
+                machine_list = sorted(list(data["machines"]))
+                
+                logger.info(f"Machine count calculation:")
+                logger.info(f"  Unique machines: {machine_list}")
+                logger.info(f"  Machine count: {machine_count}")
+
+                # ===== SUMMARY RECORD CREATION =====
+                # Create summary record for this line
+                summary_record = {
+                    "S.no": idx,
+                    "Date": data["date"],
+                    "Line Number": data["line_number"],
+                    "Total Hours": hours_to_hhmm(total_hours),
+                    "Sewing Hours": hours_to_hhmm(data["Sewing Hours"]),
+                    "Idle Hours": hours_to_hhmm(data["Idle Hours"]),
+                    "Rework Hours": hours_to_hhmm(data["Rework Hours"]),
+                    "No feeding Hours": hours_to_hhmm(data["No feeding Hours"]),
+                    "Meeting Hours": hours_to_hhmm(data["Meeting Hours"]),
+                    "Maintenance Hours": hours_to_hhmm(data["Maintenance Hours"]),
+                    "Needle Break": hours_to_hhmm(data["Needle Break"]),
+                    "PT %": round(pt_percentage, 2),
+                    "NPT %": round(npt_percentage, 2),
+                    "Needle Time %": round(needle_time_pct, 2),
+                    "SPM": round(sewing_speed, 2),
+                    "Stitch Count": data["Stitch Count"],
+                    "Machine Count": machine_count,
+                    "Machine List": machine_list  # For debugging/reference
+                }
+                
+                summary.append(summary_record)
+                logger.info(f"Summary record created for Line {data['line_number']}")
+
+            # ===== TILE DATA GENERATION =====
+            logger.info("\n=== GENERATING TILE DATA ===")
+            
+            # ===== TILE 1: PRODUCTIVE TIME % =====
+            logger.info("--- TILE 1: PRODUCTIVE TIME % ---")
+            
+            # Calculate fleet-wide productive time percentage
+            total_pt_hours = sum(data["Sewing Hours"] for data in line_report.values())
+            total_all_hours = sum(
+                data["Sewing Hours"] + data["Idle Hours"] + data["No feeding Hours"] + 
+                data["Meeting Hours"] + data["Maintenance Hours"] + data["Rework Hours"] + 
+                data["Needle Break"] for data in line_report.values()
+            )
+            
+            fleet_pt_percentage = (total_pt_hours / total_all_hours * 100) if total_all_hours > 0 else 0
+            
+            logger.info(f"Fleet Productive Time calculation:")
+            logger.info(f"  Total PT hours: {total_pt_hours:.4f}")
+            logger.info(f"  Total all hours: {total_all_hours:.4f}")
+            logger.info(f"  Fleet PT %: ({total_pt_hours:.4f} / {total_all_hours:.4f}) × 100 = {fleet_pt_percentage:.2f}%")
+            
+            tile1_productive_time = {
+                "tile_name": "Productive Time %",
+                "percentage": round(fleet_pt_percentage, 2),
+                "total_productive_hours": hours_to_hhmm(total_pt_hours),
+                "total_hours": hours_to_hhmm(total_all_hours),
+                "lines_processed": len(line_report)
+            }
+
+            # ===== TILE 2: NEEDLE TIME % =====
+            logger.info("--- TILE 2: NEEDLE TIME % ---")
+            
+            # Calculate fleet-wide needle runtime percentage (excluding values < 2%)
+            total_needle_runtime = 0
+            total_productive_seconds = 0
+            valid_needle_instances = 0
+            
+            for data in line_report.values():
+                if data["Sewing Hours"] > 0:  # Only consider lines with sewing activity
+                    needle_secs = data["Needle Run Time"]
+                    pt_secs = data["Sewing Hours"] * 3600
+                    needle_pct = (needle_secs / pt_secs * 100) if pt_secs > 0 else 0
+                    
+                    if needle_pct >= 2.0:  # Exclusion rule: < 2% excluded
+                        total_needle_runtime += needle_secs
+                        total_productive_seconds += pt_secs
+                        valid_needle_instances += 1
+            
+            fleet_needle_percentage = (total_needle_runtime / total_productive_seconds * 100) if total_productive_seconds > 0 else 0
+            
+            logger.info(f"Fleet Needle Runtime calculation:")
+            logger.info(f"  Total needle runtime: {total_needle_runtime:.2f} seconds")
+            logger.info(f"  Total productive seconds: {total_productive_seconds:.2f} seconds")
+            logger.info(f"  Valid instances (≥2%): {valid_needle_instances}")
+            logger.info(f"  Fleet Needle %: ({total_needle_runtime:.2f} / {total_productive_seconds:.2f}) × 100 = {fleet_needle_percentage:.2f}%")
+            
+            tile2_needle_time = {
+                "tile_name": "Needle Time %",
+                "percentage": round(fleet_needle_percentage, 2),
+                "valid_instances": valid_needle_instances,
+                "exclusion_threshold": 2.0
+            }
+
+            # ===== TILE 3: SEWING SPEED =====
+            logger.info("--- TILE 3: SEWING SPEED ---")
+            
+            # Calculate fleet-wide average sewing speed
+            total_spm = sum(data["Total SPM"] for data in line_report.values())
+            total_spm_instances = sum(data["SPM Instances"] for data in line_report.values())
+            
+            fleet_avg_sewing_speed = (total_spm / total_spm_instances) if total_spm_instances > 0 else 0
+            
+            logger.info(f"Fleet Sewing Speed calculation:")
+            logger.info(f"  Total SPM: {total_spm:.2f}")
+            logger.info(f"  Total instances: {total_spm_instances}")            
+            logger.info(f"  Fleet Average SPM: {fleet_avg_sewing_speed:.2f}")
+            
+            tile3_sewing_speed = {
+                "tile_name": "Sewing Speed",
+                "average_spm": round(fleet_avg_sewing_speed, 2),
+                "total_instances": total_spm_instances,
+                "lines_processed": len(line_report)
+            }
+
+            # ===== TILE 4: TOTAL HOURS =====
+            logger.info("--- TILE 4: TOTAL HOURS ---")
+            
+            # Sum all hours across all lines
+            fleet_total_hours = total_all_hours  # Already calculated above
+            
+            logger.info(f"Fleet Total Hours: {fleet_total_hours:.4f} hours ({hours_to_hhmm(fleet_total_hours)})")
+            
+            tile4_total_hours = {
+                "tile_name": "Total Hours",
+                "total_hours": hours_to_hhmm(fleet_total_hours),
+                "total_hours_decimal": round(fleet_total_hours, 2),
+                "lines_processed": len(line_report)
+            }
+
+            # ===== FINAL RESPONSE =====
+            logger.info(f"\n=== LINE REPORT COMPLETED ===")
+            logger.info(f"Summary records generated: {len(summary)}")
+            logger.info(f"Excluded log entries: {len(excluded_logs)}")
+            logger.info(f"Lines processed: {len(line_report)}")
+            
+            return Response({
+                "summary": summary,
+                "excluded_logs": excluded_logs,
+                "tile1_productive_time": tile1_productive_time,
+                "tile2_needle_time": tile2_needle_time, 
+                "tile3_sewing_speed": tile3_sewing_speed,
+                "tile4_total_hours": tile4_total_hours,
+                "metadata": {
+                    "total_lines_processed": len(line_report),
+                    "total_summary_records": len(summary),
+                    "date_range": f"{min(report_dates)} to {max(report_dates)}" if report_dates else "No data",
+                    "processing_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+            })
+            
+            
+            
+            
+""" Module 3 - Operator Report """     
+""" Module 3 - Operator Report """     
+class OperatorReport(APIView):
+    """
+    Operator Report Module - Comprehensive Analysis
+    
+    This module provides operator-wise analysis aggregated by OPERATOR_ID.
+    Each operator can work on multiple machines/lines, and the report shows consolidated data per operator.
+    
+    Key Features:
+    - Operator-wise aggregation across all machines/lines
+    - Mode-based hour calculations (1-7)
+    - Past date vs Current date logic for idle time calculation
+    - Productive vs Non-Productive Time analysis
+    - Needle runtime and sewing speed calculations
+    - RFID mapping for operator names
+    - Special idle time logic for consolidated operator reports
+    """
+
+    def get(self, request, *args, **kwargs):
+        """
+        Generate Operator Report with comprehensive analytics
+        
+        Query Parameters:
+        - operator_id: Filter by specific operator ID
+        - date: Filter by specific date
+        - from: Start date for date range
+        - to: End date for date range
+        """
+        
+        # ===== PARAMETER EXTRACTION =====
+        operator_id_filter = request.query_params.get('operator_id')
+        date_str = request.query_params.get('date')
+        from_str = request.query_params.get('from')
+        to_str = request.query_params.get('to')
+
+        logger.info("=== OPERATOR REPORT MODULE STARTED ===")
+        logger.info(f"Parameters: operator_id={operator_id_filter}, date={date_str}, from={from_str}, to={to_str}")
+
+        # ===== RFID OPERATOR MAPPING =====
+        # Define RFID to Operator Name mapping (as per requirement example)
+        operator_rfid_mapping = {
+            "3658143475": "OPERATOR-01",
+            "3658143476": "OPERATOR-02", 
+            "3658143477": "OPERATOR-03",
+            "3658143478": "OPERATOR-04",
+            "3658143479": "OPERATOR-05",
+            # Add more mappings as needed
+        }
+        
+        logger.info("=== RFID OPERATOR MAPPING INITIALIZED ===")
+        logger.info(f"Available operator mappings: {list(operator_rfid_mapping.keys())}")
+
+        # ===== DATE RANGE DETERMINATION =====
+        # Determine which dates to process based on parameters
+        if from_str and to_str:
+            # Date range mode: Process all dates between from and to
+            report_dates = MachineLog.objects.filter(
+                DATE__gte=from_str, 
+                DATE__lte=to_str
+            ).values_list('DATE', flat=True).distinct()
+            logger.info(f"Date range mode: {from_str} to {to_str}, found {len(report_dates)} unique dates")
+        elif date_str:
+            # Single date mode: Process only the specified date
+            report_dates = [date_str]
+            logger.info(f"Single date mode: {date_str}")
+        else:
+            # All dates mode: Process all available dates
+            report_dates = MachineLog.objects.values_list('DATE', flat=True).distinct()
+            logger.info(f"All dates mode: found {len(report_dates)} unique dates")
+
+        # ===== CURRENT DATE DETERMINATION =====
+        # Determine current date for idle time calculation logic
+        current_date = datetime.now().date()
+        current_date_str = current_date.strftime('%Y-%m-%d')
+        current_time = datetime.now().time()
+        
+        logger.info("=== CURRENT DATE/TIME CONFIGURATION ===")
+        logger.info(f"Current Date: {current_date_str}")
+        logger.info(f"Current Time: {current_time.strftime('%H:%M:%S')}")
+
+        # ===== TIME WINDOW & BREAK DEFINITIONS =====
+        # Define working hours and break periods for consumed hours calculation
+        work_start_time = time(8, 30)  # Work starts at 08:30
+        work_end_time = time(19, 30)   # Work ends at 19:30 (for reference)
+        
+        # Break periods for current date consumed hours adjustment
+        morning_break = (time(10, 30), time(10, 40))  # 10 minutes
+        lunch_break = (time(13, 20), time(14, 0))     # 40 minutes  
+        evening_break = (time(16, 20), time(16, 30))  # 10 minutes
+        
+        logger.info("=== WORK TIME CONFIGURATION ===")
+        logger.info(f"Work Start Time: {work_start_time.strftime('%H:%M')}")
+        logger.info(f"Morning Break: {morning_break[0].strftime('%H:%M')} - {morning_break[1].strftime('%H:%M')} (10 mins)")
+        logger.info(f"Lunch Break: {lunch_break[0].strftime('%H:%M')} - {lunch_break[1].strftime('%H:%M')} (40 mins)")
+        logger.info(f"Evening Break: {evening_break[0].strftime('%H:%M')} - {evening_break[1].strftime('%H:%M')} (10 mins)")
+
+        # ===== DATA STRUCTURES INITIALIZATION =====
+        operator_report = {}       # Main data aggregation by operator
+        excluded_logs = []         # Track excluded log entries
+        calculation_logs = {}      # Detailed calculation tracking
+        
+        logger.info("=== DATA PROCESSING STARTED ===")
+
+        # ===== MAIN DATA PROCESSING LOOP =====
+        for report_date in report_dates:
+            logger.info(f"\n--- Processing Date: {report_date} ---")
+            
+            # Determine if this is past date or current date
+            is_current_date = (report_date == current_date_str)
+            date_type = "CURRENT DATE" if is_current_date else "PAST DATE"
+            
+            logger.info(f"Date Type: {date_type}")
+            
+            # Fetch all logs for the current date
+            logs = MachineLog.objects.filter(DATE=report_date)
+            logger.info(f"Initial logs count for date {report_date}: {logs.count()}")
+            
+            # Apply operator filter if specified
+            if operator_id_filter:
+                logs = logs.filter(OPERATOR_ID=operator_id_filter)
+                logger.info(f"Filtered logs by OPERATOR_ID={operator_id_filter}: {logs.count()}")
+
+            logs = list(logs)  # Convert to list for processing
+
+            # ===== LOG VALIDATION AND PROCESSING =====
+            for log in logs:
+                operator_id = getattr(log, 'OPERATOR_ID', None)
+                if not operator_id:
+                    logger.warning(f"Log skipped - missing OPERATOR_ID: MACHINE={log.MACHINE_ID}, MODE={log.MODE}")
+                    continue
+                    
+                logger.info(f"Processing log: OPERATOR={operator_id}, MACHINE={log.MACHINE_ID}, MODE={log.MODE}")
+                
+                try:
+                    # Parse start and end times
+                    st = log.START_TIME if isinstance(log.START_TIME, time) else datetime.strptime(str(log.START_TIME), "%H:%M:%S").time()
+                    et = log.END_TIME if isinstance(log.END_TIME, time) else datetime.strptime(str(log.END_TIME), "%H:%M:%S").time()
+                except Exception as e:
+                    logger.error(f"Error parsing times for log {getattr(log, 'id', 'N/A')}: {e}")
+                    continue
+
+                # ===== DURATION CALCULATION =====
+                # Calculate duration in hours (no window/break exclusions for operator report)
+                if isinstance(report_date, str):
+                    report_date_obj = datetime.strptime(report_date, '%Y-%m-%d').date()
+                else:
+                    report_date_obj = report_date  # Already a date object
+
+                duration_seconds = (datetime.combine(report_date_obj, et) - 
+                                datetime.combine(report_date_obj, st)).total_seconds()
+                duration = duration_seconds / 3600.0  # Convert to hours
+
+                logger.info(f"Duration calculation: OPERATOR={operator_id}")
+                logger.info(f"  Start Time: {st.strftime('%H:%M:%S')}")
+                logger.info(f"  End Time: {et.strftime('%H:%M:%S')}")
+                logger.info(f"  Raw duration: {duration_seconds} seconds = {duration:.4f} hours")
+
+                # Skip if duration is not positive
+                if duration <= 0:
+                    logger.info(f"Log skipped - non-positive duration: OPERATOR={operator_id}")
+                    continue
+
+                # ===== OPERATOR REPORT AGGREGATION =====
+                # Create unique key for operator and date combination
+                report_key = f"{report_date}_{operator_id}"
+                
+                # Initialize operator data structure if not exists
+                if report_key not in operator_report:
+                    operator_report[report_key] = {
+                        "date": report_date,
+                        "operator_id": operator_id,
+                        "operator_name": operator_rfid_mapping.get(str(operator_id), f"UNKNOWN-{operator_id}"),
+                        "is_current_date": is_current_date,
+                        "machines_worked": set(),  # Track machines this operator worked on
+                        "lines_worked": set(),     # Track lines this operator worked on
+                        # Mode-based hour tracking
+                        "Sewing Hours": 0,         # Mode 1
+                        "Idle Hours": 0,           # Mode 2 (calculated separately)
+                        "No feeding Hours": 0,     # Mode 3
+                        "Meeting Hours": 0,        # Mode 4
+                        "Maintenance Hours": 0,    # Mode 5
+                        "Rework Hours": 0,         # Mode 6
+                        "Needle Break": 0,         # Mode 7
+                        # Additional metrics
+                        "Needle Run Time": 0,      # Seconds
+                        "Total SPM": 0,            # Sum of all SPM values
+                        "SPM Instances": 0,        # Count of SPM instances
+                        "Stitch Count": 0,         # Sum of stitch counts
+                        # Work hours tracking for idle calculation
+                        "Work Hours": 0,           # Sum of all modes except idle
+                    }
+                    calculation_logs[report_key] = []
+
+                # Track machines and lines worked by this operator
+                operator_report[report_key]["machines_worked"].add(log.MACHINE_ID)
+                if hasattr(log, 'LINE_NUMB') and log.LINE_NUMB:
+                    operator_report[report_key]["lines_worked"].add(log.LINE_NUMB)
+
+                # ===== MODE-BASED AGGREGATION =====
+                # Aggregate hours based on machine mode
+                mode = log.MODE
+                reserve = float(getattr(log, "RESERVE", 0) or 0)
+                needle_runtime = float(getattr(log, "NEEDLE_RUNTIME", 0) or 0)
+                stitch_count = int(getattr(log, "STITCH_COUNT", 0) or 0)
+                
+                logger.info(f"Mode-based aggregation: OPERATOR={operator_id}, MODE={mode}, DURATION={duration:.4f}h")
+
+                # Mode 1: Sewing (Productive Time)
+                if mode == 1:
+                    operator_report[report_key]["Sewing Hours"] += duration
+                    operator_report[report_key]["Needle Run Time"] += needle_runtime
+                    operator_report[report_key]["Stitch Count"] += stitch_count
+                    operator_report[report_key]["Work Hours"] += duration
+                    logger.info(f"  Added to Sewing: {duration:.4f}h")
+                
+                # Mode 2: Idle (handled separately in idle calculation logic)
+                elif mode == 2:
+                    # Note: Idle hours will be calculated separately based on past/current date logic
+                    logger.info(f"  Mode 2 (Idle) detected: {duration:.4f}h - will be handled in idle calculation")
+                
+                # Mode 3: No feeding (Non-Productive Time)
+                elif mode == 3:
+                    operator_report[report_key]["No feeding Hours"] += duration
+                    operator_report[report_key]["Work Hours"] += duration
+                    logger.info(f"  Added to No feeding: {duration:.4f}h")
+                
+                # Mode 4: Meeting (Non-Productive Time)
+                elif mode == 4:
+                    operator_report[report_key]["Meeting Hours"] += duration
+                    operator_report[report_key]["Work Hours"] += duration
+                    logger.info(f"  Added to Meeting: {duration:.4f}h")
+                
+                # Mode 5: Maintenance (Non-Productive Time)
+                elif mode == 5:
+                    operator_report[report_key]["Maintenance Hours"] += duration
+                    operator_report[report_key]["Work Hours"] += duration
+                    logger.info(f"  Added to Maintenance: {duration:.4f}h")
+                
+                # Mode 6: Rework (Non-Productive Time)
+                elif mode == 6:
+                    operator_report[report_key]["Rework Hours"] += duration
+                    operator_report[report_key]["Work Hours"] += duration
+                    logger.info(f"  Added to Rework: {duration:.4f}h")
+                
+                # Mode 7: Needle Break (Non-Productive Time)
+                elif mode == 7:
+                    operator_report[report_key]["Needle Break"] += duration
+                    operator_report[report_key]["Work Hours"] += duration
+                    logger.info(f"  Added to Needle Break: {duration:.4f}h")
+
+                # ===== SPM AGGREGATION (ALL MODES) =====
+                # Collect SPM data from all modes (not just sewing)
+                if reserve > 0:
+                    operator_report[report_key]["Total SPM"] += reserve
+                    operator_report[report_key]["SPM Instances"] += 1
+                    logger.info(f"  Added SPM: {reserve:.2f} (Total instances: {operator_report[report_key]['SPM Instances']})")
+
+        # ===== IDLE TIME CALCULATION FOR EACH OPERATOR =====
+        logger.info("\n=== IDLE TIME CALCULATION PHASE ===")
+        
+        # ===== ENHANCED IDLE TIME CALCULATION WITH DETAILED LOGGING =====
+        for report_key, data in operator_report.items():
+            logger.info(f"\n{'='*80}")
+            logger.info(f"OPERATOR IDLE TIME CALCULATION BREAKDOWN")
+            logger.info(f"{'='*80}")
+            
+            operator_id = data["operator_id"]
+            report_date = data["date"]
+            is_current_date = data["is_current_date"]
+            work_hours = data["Work Hours"]
+            
+            logger.info(f"📋 OPERATOR DETAILS:")
+            logger.info(f"  ├─ Operator ID: {operator_id}")
+            logger.info(f"  ├─ Operator Name: {data['operator_name']}")
+            logger.info(f"  ├─ Date: {report_date}")
+            logger.info(f"  ├─ Date Type: {'CURRENT DATE' if is_current_date else 'PAST DATE'}")
+            logger.info(f"  └─ Machines Worked: {sorted(list(data['machines_worked']))}")
+            
+            logger.info(f"\n🔢 WORK HOURS BREAKDOWN:")
+            logger.info(f"  ├─ Sewing Hours (Mode 1): {data['Sewing Hours']:.4f}")
+            logger.info(f"  ├─ No Feeding Hours (Mode 3): {data['No feeding Hours']:.4f}")
+            logger.info(f"  ├─ Meeting Hours (Mode 4): {data['Meeting Hours']:.4f}")
+            logger.info(f"  ├─ Maintenance Hours (Mode 5): {data['Maintenance Hours']:.4f}")
+            logger.info(f"  ├─ Rework Hours (Mode 6): {data['Rework Hours']:.4f}")
+            logger.info(f"  ├─ Needle Break Hours (Mode 7): {data['Needle Break']:.4f}")
+            logger.info(f"  └─ TOTAL WORK HOURS: {work_hours:.4f} hours")
+            
+            logger.info(f"\n📊 WORK HOURS FORMULA:")
+            logger.info(f"  Work Hours = Sewing + No Feeding + Meeting + Maintenance + Rework + Needle Break")
+            logger.info(f"  Work Hours = {data['Sewing Hours']:.4f} + {data['No feeding Hours']:.4f} + {data['Meeting Hours']:.4f} + {data['Maintenance Hours']:.4f} + {data['Rework Hours']:.4f} + {data['Needle Break']:.4f}")
+            logger.info(f"  Work Hours = {work_hours:.4f} hours")
+            
+            if is_current_date:
+                logger.info(f"\n🕒 CURRENT DATE CALCULATION:")
+                logger.info(f"  Current Date: {current_date_str}")
+                logger.info(f"  Current Time: {current_time.strftime('%H:%M:%S')}")
+                logger.info(f"  Work Start Time: {work_start_time.strftime('%H:%M:%S')}")
+                
+                # Calculate basic consumed hours
+                work_start_datetime = datetime.combine(current_date, work_start_time)
+                current_datetime = datetime.combine(current_date, current_time)
+                consumed_seconds = (current_datetime - work_start_datetime).total_seconds()
+                consumed_hours = consumed_seconds / 3600.0
+                
+                logger.info(f"\n⏰ BASIC CONSUMED HOURS CALCULATION:")
+                logger.info(f"  Formula: Consumed Hours = Current Time - 8:30 AM")
+                logger.info(f"  Calculation: {current_time.strftime('%H:%M:%S')} - {work_start_time.strftime('%H:%M:%S')}")
+                logger.info(f"  Raw Consumed: {consumed_seconds} seconds = {consumed_hours:.4f} hours")
+                
+                # Break time adjustments with detailed logging
+                logger.info(f"\n☕ BREAK TIME ADJUSTMENTS:")
+                break_deduction = 0
+                
+                # Morning Break (10:30-10:40, 10 minutes)
+                logger.info(f"\n  🌅 MORNING BREAK (10:30-10:40):")
+                if current_time > morning_break[1]:  # After 10:40
+                    break_deduction += 10/60
+                    logger.info(f"    ├─ Current Time: {current_time.strftime('%H:%M')} > 10:40")
+                    logger.info(f"    ├─ Status: AFTER break period")
+                    logger.info(f"    ├─ Deduction: Full 10 minutes = {10/60:.4f} hours")
+                    logger.info(f"    └─ Running Break Total: {break_deduction:.4f} hours")
+                elif current_time > morning_break[0]:  # Between 10:30 and 10:40
+                    partial_break = (current_datetime - datetime.combine(current_date, morning_break[0])).total_seconds() / 3600
+                    break_deduction += partial_break
+                    logger.info(f"    ├─ Current Time: {current_time.strftime('%H:%M')} (IN break period)")
+                    logger.info(f"    ├─ Status: DURING break period")
+                    logger.info(f"    ├─ Partial Duration: {current_time.strftime('%H:%M')} - 10:30 = {partial_break*60:.1f} minutes")
+                    logger.info(f"    ├─ Deduction: {partial_break:.4f} hours")
+                    logger.info(f"    └─ Running Break Total: {break_deduction:.4f} hours")
+                else:
+                    logger.info(f"    ├─ Current Time: {current_time.strftime('%H:%M')} < 10:30")
+                    logger.info(f"    ├─ Status: BEFORE break period")
+                    logger.info(f"    ├─ Deduction: 0 hours")
+                    logger.info(f"    └─ Running Break Total: {break_deduction:.4f} hours")
+                
+                # Lunch Break (13:20-14:00, 40 minutes)
+                logger.info(f"\n  🍽️ LUNCH BREAK (13:20-14:00):")
+                if current_time > lunch_break[1]:  # After 14:00
+                    break_deduction += 40/60
+                    logger.info(f"    ├─ Current Time: {current_time.strftime('%H:%M')} > 14:00")
+                    logger.info(f"    ├─ Status: AFTER break period")
+                    logger.info(f"    ├─ Deduction: Full 40 minutes = {40/60:.4f} hours")
+                    logger.info(f"    └─ Running Break Total: {break_deduction:.4f} hours")
+                elif current_time > lunch_break[0]:  # Between 13:20 and 14:00
+                    partial_break = (current_datetime - datetime.combine(current_date, lunch_break[0])).total_seconds() / 3600
+                    break_deduction += partial_break
+                    logger.info(f"    ├─ Current Time: {current_time.strftime('%H:%M')} (IN break period)")
+                    logger.info(f"    ├─ Status: DURING break period")
+                    logger.info(f"    ├─ Partial Duration: {current_time.strftime('%H:%M')} - 13:20 = {partial_break*60:.1f} minutes")
+                    logger.info(f"    ├─ Deduction: {partial_break:.4f} hours")
+                    logger.info(f"    └─ Running Break Total: {break_deduction:.4f} hours")
+                else:
+                    logger.info(f"    ├─ Current Time: {current_time.strftime('%H:%M')} < 13:20")
+                    logger.info(f"    ├─ Status: BEFORE break period")
+                    logger.info(f"    ├─ Deduction: 0 hours")
+                    logger.info(f"    └─ Running Break Total: {break_deduction:.4f} hours")
+                
+                # Evening Break (16:20-16:30, 10 minutes)
+                logger.info(f"\n  🌆 EVENING BREAK (16:20-16:30):")
+                if current_time > evening_break[1]:  # After 16:30
+                    break_deduction += 10/60
+                    logger.info(f"    ├─ Current Time: {current_time.strftime('%H:%M')} > 16:30")
+                    logger.info(f"    ├─ Status: AFTER break period")
+                    logger.info(f"    ├─ Deduction: Full 10 minutes = {10/60:.4f} hours")
+                    logger.info(f"    └─ Running Break Total: {break_deduction:.4f} hours")
+                elif current_time > evening_break[0]:  # Between 16:20 and 16:30
+                    partial_break = (current_datetime - datetime.combine(current_date, evening_break[0])).total_seconds() / 3600
+                    break_deduction += partial_break
+                    logger.info(f"    ├─ Current Time: {current_time.strftime('%H:%M')} (IN break period)")
+                    logger.info(f"    ├─ Status: DURING break period")
+                    logger.info(f"    ├─ Partial Duration: {current_time.strftime('%H:%M')} - 16:20 = {partial_break*60:.1f} minutes")
+                    logger.info(f"    ├─ Deduction: {partial_break:.4f} hours")
+                    logger.info(f"    └─ Running Break Total: {break_deduction:.4f} hours")
+                else:
+                    logger.info(f"    ├─ Current Time: {current_time.strftime('%H:%M')} < 16:20")
+                    logger.info(f"    ├─ Status: BEFORE break period")
+                    logger.info(f"    ├─ Deduction: 0 hours")
+                    logger.info(f"    └─ Running Break Total: {break_deduction:.4f} hours")
+                
+                # Final consumed hours calculation
+                final_consumed_hours = consumed_hours - break_deduction
+                
+                logger.info(f"\n🎯 FINAL CONSUMED HOURS CALCULATION:")
+                logger.info(f"  Formula: Final Consumed = Raw Consumed - Total Break Deduction")
+                logger.info(f"  Calculation: {consumed_hours:.4f} - {break_deduction:.4f} = {final_consumed_hours:.4f} hours")
+                logger.info(f"  Break Summary:")
+                logger.info(f"    ├─ Total Break Minutes: {break_deduction*60:.1f} minutes")
+                logger.info(f"    ├─ Total Break Hours: {break_deduction:.4f} hours")
+                logger.info(f"    └─ Final Consumed Hours: {final_consumed_hours:.4f} hours")
+                
+                # Idle time determination
+                logger.info(f"\n⚖️ IDLE TIME DETERMINATION:")
+                logger.info(f"  Rule 1: If Work Hours ≥ Consumed Hours → Idle = 0")
+                logger.info(f"  Rule 2: If Work Hours < Consumed Hours → Idle = Consumed - Work")
+                logger.info(f"  Comparison: Work Hours ({work_hours:.4f}) vs Consumed Hours ({final_consumed_hours:.4f})")
+                
+                if work_hours >= final_consumed_hours:
+                    idle_hours = 0
+                    logger.info(f"  Result: {work_hours:.4f} ≥ {final_consumed_hours:.4f} → IDLE = 0 hours")
+                    logger.info(f"  Explanation: Operator worked equal/more than available time")
+                else:
+                    idle_hours = final_consumed_hours - work_hours
+                    logger.info(f"  Result: {work_hours:.4f} < {final_consumed_hours:.4f} → IDLE = {final_consumed_hours:.4f} - {work_hours:.4f} = {idle_hours:.4f} hours")
+                    logger.info(f"  Explanation: Operator had {idle_hours:.4f} hours of idle time")
+                
+                data["Consumed Hours"] = final_consumed_hours
+                data["Break Deduction"] = break_deduction
+                
+            else:
+                # Past date calculation
+                logger.info(f"\n📅 PAST DATE CALCULATION:")
+                assumed_consumed_hours = 10.0
+                
+                logger.info(f"  Past Date Rule: Consumed Hours = 10 (assumed)")
+                logger.info(f"  Work Hours: {work_hours:.4f} hours")
+                logger.info(f"  Assumed Consumed Hours: {assumed_consumed_hours} hours")
+                
+                logger.info(f"\n⚖️ IDLE TIME DETERMINATION:")
+                logger.info(f"  Rule 1: If Work Hours ≥ Consumed Hours → Idle = 0")
+                logger.info(f"  Rule 2: If Work Hours < Consumed Hours → Idle = Consumed - Work")
+                logger.info(f"  Comparison: Work Hours ({work_hours:.4f}) vs Consumed Hours ({assumed_consumed_hours})")
+                
+                if work_hours >= assumed_consumed_hours:
+                    idle_hours = 0
+                    logger.info(f"  Result: {work_hours:.4f} ≥ {assumed_consumed_hours} → IDLE = 0 hours")
+                    logger.info(f"  Explanation: Operator worked equal/more than assumed 10 hours")
+                else:
+                    idle_hours = assumed_consumed_hours - work_hours
+                    logger.info(f"  Result: {work_hours:.4f} < {assumed_consumed_hours} → IDLE = {assumed_consumed_hours} - {work_hours:.4f} = {idle_hours:.4f} hours")
+                    logger.info(f"  Explanation: Operator had {idle_hours:.4f} hours of idle time")
+                
+                data["Consumed Hours"] = assumed_consumed_hours
+                data["Break Deduction"] = 0
+            
+            # Update and log final result
+            data["Idle Hours"] = idle_hours
+            
+            logger.info(f"\n✅ FINAL OPERATOR SUMMARY:")
+            logger.info(f"  ├─ Work Hours: {work_hours:.4f} hours")
+            logger.info(f"  ├─ Consumed Hours: {data['Consumed Hours']:.4f} hours")
+            logger.info(f"  ├─ Break Deduction: {data.get('Break Deduction', 0):.4f} hours")
+            logger.info(f"  ├─ Idle Hours: {idle_hours:.4f} hours")
+            logger.info(f"  └─ Total Hours: {work_hours + idle_hours:.4f} hours")
+
+        # ===== HELPER FUNCTION FOR HOURS TO HH:MM FORMAT =====
+        def hours_to_hhmm(hours):
+            h = int(hours)
+            m = int(round((hours - h) * 60))
+            return f"{h:02d}:{m:02d}"
+        
+        # ===== SUMMARY GENERATION =====
+        logger.info("\n=== GENERATING OPERATOR SUMMARY ===")
+        summary = []
+        
+        # ===== ENHANCED SUMMARY GENERATION WITH DETAILED CALCULATIONS =====
+        for idx, (report_key, data) in enumerate(operator_report.items(), 1):
+            logger.info(f"\n{'='*100}")
+            logger.info(f"OPERATOR SUMMARY CALCULATION BREAKDOWN - RECORD {idx}")
+            logger.info(f"{'='*100}")
+            
+            # Basic calculations with detailed logging
+            total_hours = (data["Sewing Hours"] + data["Idle Hours"] + data["No feeding Hours"] + 
+                          data["Meeting Hours"] + data["Maintenance Hours"] + data["Rework Hours"] + 
+                          data["Needle Break"])
+            
+            PT = data["Sewing Hours"]
+            NPT = (data["Idle Hours"] + data["No feeding Hours"] + data["Meeting Hours"] + 
+                   data["Maintenance Hours"] + data["Rework Hours"] + data["Needle Break"])
+            
+            logger.info(f"👤 OPERATOR: {data['operator_id']} ({data['operator_name']})")
+            logger.info(f"📅 DATE: {data['date']} ({'CURRENT' if data['is_current_date'] else 'PAST'})")
+            
+            logger.info(f"\n🕐 TOTAL HOURS CALCULATION:")
+            logger.info(f"  Formula: Total Hours = PT + NPT")
+            logger.info(f"  Formula: Total Hours = Sewing + Idle + No Feeding + Meeting + Maintenance + Rework + Needle Break")
+            logger.info(f"  Calculation: {data['Sewing Hours']:.4f} + {data['Idle Hours']:.4f} + {data['No feeding Hours']:.4f} + {data['Meeting Hours']:.4f} + {data['Maintenance Hours']:.4f} + {data['Rework Hours']:.4f} + {data['Needle Break']:.4f}")
+            logger.info(f"  Result: Total Hours = {total_hours:.4f} hours")
+            
+            logger.info(f"\n🎯 PRODUCTIVE TIME (PT) CALCULATION:")
+            logger.info(f"  Formula: PT = Sewing Hours")
+            logger.info(f"  Result: PT = {PT:.4f} hours")
+            
+            logger.info(f"\n🚫 NON-PRODUCTIVE TIME (NPT) CALCULATION:")
+            logger.info(f"  Formula: NPT = Sum of Mode-2 to Mode-7 duration")
+            logger.info(f"  Formula: NPT = Idle + No Feeding + Meeting + Maintenance + Rework + Needle Break")
+            logger.info(f"  Calculation: {data['Idle Hours']:.4f} + {data['No feeding Hours']:.4f} + {data['Meeting Hours']:.4f} + {data['Maintenance Hours']:.4f} + {data['Rework Hours']:.4f} + {data['Needle Break']:.4f}")
+            logger.info(f"  Result: NPT = {NPT:.4f} hours")
+            
+            # Percentage calculations with detailed logging
+            pt_percentage = (PT / total_hours * 100) if total_hours > 0 else 0
+            npt_percentage = (NPT / total_hours * 100) if total_hours > 0 else 0
+            
+            logger.info(f"\n📊 PERCENTAGE CALCULATIONS:")
+            logger.info(f"  PT% Formula: PT/Total hours * 100")
+            logger.info(f"  PT% Calculation: ({PT:.4f} / {total_hours:.4f}) * 100 = {pt_percentage:.2f}%")
+            logger.info(f"  NPT% Formula: NPT/Total hours * 100")
+            logger.info(f"  NPT% Calculation: ({NPT:.4f} / {total_hours:.4f}) * 100 = {npt_percentage:.2f}%")
+            logger.info(f"  Verification: PT% + NPT% = {pt_percentage:.2f}% + {npt_percentage:.2f}% = {pt_percentage + npt_percentage:.2f}%")
+            
+            # Needle runtime calculation
+            needle_runtime_secs = data["Needle Run Time"]
+            PT_secs = PT * 3600
+            needle_time_pct = (needle_runtime_secs / PT_secs * 100) if PT_secs > 0 else 0
+            
+            logger.info(f"\n💉 NEEDLE TIME CALCULATION:")
+            logger.info(f"  Formula: Needle time % = Total needle run time/PT * 100")
+            logger.info(f"  Needle Runtime: {needle_runtime_secs:.2f} seconds")
+            logger.info(f"  Productive Time: {PT:.4f} hours = {PT_secs:.2f} seconds")
+            logger.info(f"  Calculation: ({needle_runtime_secs:.2f} / {PT_secs:.2f}) * 100 = {needle_time_pct:.2f}%")
+            
+            # Sewing speed calculation (integer)
+            sewing_speed = (data["Total SPM"] / data["SPM Instances"]) if data["SPM Instances"] > 0 else 0
+            sewing_speed_whole = int(round(sewing_speed))
+            
+            logger.info(f"\n🧵 SEWING SPEED CALCULATION:")
+            logger.info(f"  Formula: SPM = Total SPM / Number of instances")
+            logger.info(f"  Calculation: {data['Total SPM']:.2f} / {data['SPM Instances']} = {sewing_speed:.2f}")
+            logger.info(f"  Integer Result: {sewing_speed_whole} SPM (no decimal points)")
+            
+            # Stitch count (integer)
+            stitch_count_whole = int(data["Stitch Count"])
+            logger.info(f"\n🪡 STITCH COUNT:")
+            logger.info(f"  Raw Count: {data['Stitch Count']}")
+            logger.info(f"  Integer Result: {stitch_count_whole} (no decimal points)")
+            
+            # Machine count and idle display logic
+            machines_count = len(data["machines_worked"])
+            machines_list = sorted(list(data["machines_worked"]))
+            lines_count = len(data["lines_worked"])
+            lines_list = sorted(list(data["lines_worked"]))
+            idle_display = "N/A" if machines_count > 1 else hours_to_hhmm(data["Idle Hours"])
+            
+            logger.info(f"\n🏭 MACHINE ANALYSIS:")
+            logger.info(f"  Machines Worked: {machines_list}")
+            logger.info(f"  Machine Count: {machines_count}")
+            logger.info(f"  Lines Worked: {lines_list}")
+            logger.info(f"  Line Count: {lines_count}")
+            idle_logic_text = "N/A (multiple machines)" if machines_count > 1 else f"{hours_to_hhmm(data['Idle Hours'])} (single machine)"
+            logger.info(f"  Idle Display Logic: {idle_logic_text}")
+
+            logger.info(f"\n✅ FINAL SUMMARY RECORD:")
+            logger.info(f"  ├─ Total Hours: {hours_to_hhmm(total_hours)}")
+            logger.info(f"  ├─ Sewing Hours: {hours_to_hhmm(data['Sewing Hours'])}")
+            logger.info(f"  ├─ Idle Hours: {idle_display}")
+            logger.info(f"  ├─ PT%: {pt_percentage:.2f}%")
+            logger.info(f"  ├─ NPT%: {npt_percentage:.2f}%")
+            logger.info(f"  ├─ Needle Time%: {needle_time_pct:.2f}%")
+            logger.info(f"  ├─ SPM: {sewing_speed_whole} (integer)")
+            logger.info(f"  └─ Stitch Count: {stitch_count_whole} (integer)")
+        
+            # ===== SUMMARY RECORD CREATION =====
+            # Create summary record for this operator
+            summary_record = {
+                "S.no": idx,
+                "Date": data["date"],
+                "Operator ID": data["operator_id"],
+                "Operator Name": data["operator_name"],
+                "Total Hours": hours_to_hhmm(total_hours),
+                "Sewing Hours": hours_to_hhmm(data["Sewing Hours"]),
+                "Idle Hours": idle_display,  # N/A for multiple machines
+                "Rework Hours": hours_to_hhmm(data["Rework Hours"]),
+                "No feeding Hours": hours_to_hhmm(data["No feeding Hours"]),
+                "Meeting Hours": hours_to_hhmm(data["Meeting Hours"]),
+                "Maintenance Hours": hours_to_hhmm(data["Maintenance Hours"]),
+                "Needle Break": hours_to_hhmm(data["Needle Break"]),
+                "PT %": round(pt_percentage, 2),
+                "NPT %": round(npt_percentage, 2),
+                "Needle Runtime %": round(needle_time_pct, 2),
+                "SPM": sewing_speed_whole,  # Whole number
+                "Stitch Count": stitch_count_whole,  # Whole number
+                "Machines Worked": machines_count,
+                "Lines Worked": lines_count,
+                "Machine List": machines_list,  # For reference
+                "Line List": lines_list,  # For reference
+                # Additional calculation details
+                "_calculation_details": {
+                    "work_hours": data["Work Hours"],
+                    "consumed_hours": data.get("Consumed Hours", 0),
+                    "break_deduction": data.get("Break Deduction", 0),
+                    "idle_hours_calculated": data["Idle Hours"],
+                    "is_current_date": data["is_current_date"]
+                }
+            }
+            
+            summary.append(summary_record)
+            logger.info(f"Summary record created for Operator {data['operator_id']} ({data['operator_name']})")
+
+        # ===== TILE DATA GENERATION =====
+        logger.info("\n=== GENERATING OPERATOR TILE DATA ===")
+        
+        # ===== TILE 1: PRODUCTIVE TIME % =====
+        logger.info("--- TILE 1: PRODUCTIVE TIME % ---")
+        
+        # Calculate fleet-wide productive time percentage across all operators
+        total_pt_hours = sum(data["Sewing Hours"] for data in operator_report.values())
+        total_all_hours = sum(
+            data["Sewing Hours"] + data["Idle Hours"] + data["No feeding Hours"] + 
+            data["Meeting Hours"] + data["Maintenance Hours"] + data["Rework Hours"] + 
+            data["Needle Break"] for data in operator_report.values()
+        )
+        
+        fleet_pt_percentage = (total_pt_hours / total_all_hours * 100) if total_all_hours > 0 else 0
+        
+        logger.info(f"Fleet Productive Time calculation:")
+        logger.info(f"  Total PT hours across all operators: {total_pt_hours:.4f}")
+        logger.info(f"  Total all hours across all operators: {total_all_hours:.4f}")
+        logger.info(f"  Fleet PT %: ({total_pt_hours:.4f} / {total_all_hours:.4f}) × 100 = {fleet_pt_percentage:.2f}%")
+        
+        tile1_productive_time = {
+            "tile_name": "Productive Time %",
+            "percentage": round(fleet_pt_percentage, 2),
+            "total_productive_hours": hours_to_hhmm(total_pt_hours),
+            "total_hours": hours_to_hhmm(total_all_hours),
+            "operators_processed": len(operator_report)
+        }
+
+        # ===== TILE 2: NEEDLE TIME % =====
+        logger.info("--- TILE 2: NEEDLE TIME % ---")
+        
+        # Calculate fleet-wide needle runtime percentage (excluding values < 2%)
+        total_needle_runtime = 0
+        total_productive_seconds = 0
+        valid_needle_instances = 0
+        
+        for data in operator_report.values():
+            if data["Sewing Hours"] > 0:  # Only consider operators with sewing activity
+                needle_secs = data["Needle Run Time"]
+                pt_secs = data["Sewing Hours"] * 3600
+                needle_pct = (needle_secs / pt_secs * 100) if pt_secs > 0 else 0
+                
+                if needle_pct >= 2.0:  # Exclusion rule: < 2% excluded
+                    total_needle_runtime += needle_secs
+                    total_productive_seconds += pt_secs
+                    valid_needle_instances += 1
+        
+        fleet_needle_percentage = (total_needle_runtime / total_productive_seconds * 100) if total_productive_seconds > 0 else 0
+        
+        logger.info(f"Fleet Needle Runtime calculation:")
+        logger.info(f"  Total needle runtime (valid instances): {total_needle_runtime:.2f} seconds")
+        logger.info(f"  Total productive seconds (valid instances): {total_productive_seconds:.2f} seconds")
+        logger.info(f"  Valid instances (≥2%): {valid_needle_instances}")
+        logger.info(f"  Fleet Needle %: ({total_needle_runtime:.2f} / {total_productive_seconds:.2f}) × 100 = {fleet_needle_percentage:.2f}%")
+        
+        tile2_needle_time = {
+            "tile_name": "Needle Time %",
+            "percentage": round(fleet_needle_percentage, 2),
+            "valid_instances": valid_needle_instances,
+            "exclusion_threshold": 2.0
+        }
+
+        # ===== TILE 3: SEWING SPEED =====
+        logger.info("--- TILE 3: SEWING SPEED ---")
+        
+        # Calculate fleet-wide average sewing speed
+        total_spm = sum(data["Total SPM"] for data in operator_report.values())
+        total_spm_instances = sum(data["SPM Instances"] for data in operator_report.values())
+        
+        fleet_avg_sewing_speed = (total_spm / total_spm_instances) if total_spm_instances > 0 else 0
+        
+        logger.info(f"Fleet Sewing Speed calculation:")
+        logger.info(f"  Total SPM across all operators: {total_spm:.2f}")
+        logger.info(f"  Total instances across all operators: {total_spm_instances}")            
+        logger.info(f"  Fleet Average SPM: {fleet_avg_sewing_speed:.2f}")
+        
+        tile3_sewing_speed = {
+            "tile_name": "Sewing Speed",
+            "average_spm": round(fleet_avg_sewing_speed, 2),
+            "total_instances": total_spm_instances,
+            "operators_processed": len(operator_report)
+        }
+
+        # ===== TILE 4: TOTAL HOURS =====
+        logger.info("--- TILE 4: TOTAL HOURS ---")
+        
+        # Sum all hours across all operators
+        fleet_total_hours = total_all_hours  # Already calculated above
+        
+        logger.info(f"Fleet Total Hours: {fleet_total_hours:.4f} hours ({hours_to_hhmm(fleet_total_hours)})")
+        
+        tile4_total_hours = {
+            "tile_name": "Total Hours",
+            "total_hours": hours_to_hhmm(fleet_total_hours),
+            "total_hours_decimal": round(fleet_total_hours, 2),
+            "operators_processed": len(operator_report)
+        }
+
+        # ===== FINAL RESPONSE =====
+        logger.info(f"\n=== OPERATOR REPORT COMPLETED ===")
+        logger.info(f"Summary records generated: {len(summary)}")
+        logger.info(f"Excluded log entries: {len(excluded_logs)}")
+        logger.info(f"Operators processed: {len(operator_report)}")
+        logger.info(f"Unique operators found: {len(set(data['operator_id'] for data in operator_report.values()))}")
+        
+        return Response({
+            "summary": summary,
+            "excluded_logs": excluded_logs,
+            "tile1_productive_time": tile1_productive_time,
+            "tile2_needle_time": tile2_needle_time, 
+            "tile3_sewing_speed": tile3_sewing_speed,
+            "tile4_total_hours": tile4_total_hours,
+            "metadata": {
+                "total_operators_processed": len(operator_report),
+                "total_summary_records": len(summary),
+                "date_range": f"{min(report_dates)} to {max(report_dates)}" if report_dates else "No data",
+                "current_date": current_date_str,
+                "processing_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "idle_calculation_logic": {
+                    "past_dates": "Assumed 10 hours, Idle = 10 - Work Hours (if positive)",
+                    "current_date": "Consumed = Current Time - 8:30 (minus breaks), Idle = Consumed - Work Hours (if positive)",
+                    "consolidated_report": "Idle shows as N/A if operator worked on multiple machines"
+                }
+            }
+        })
+
+""" Module 3 - Operator Report - Raw Data"""   
+class OperatorRawDataReport(APIView):
+    """
+    Raw Operator Data Report - Returns unprocessed operator logs
+    """
+    
+    def get(self, request, *args, **kwargs):
+        operator_id_filter = request.query_params.get('operator_id')
+        date_str = request.query_params.get('date')
+        from_str = request.query_params.get('from')
+        to_str = request.query_params.get('to')
+
+        logger.info("=== OPERATOR RAW DATA REQUEST ===")
+        logger.info(f"Parameters: operator_id={operator_id_filter}, date={date_str}, from={from_str}, to={to_str}")
+
+        # Build query
+        logs = MachineLog.objects.all()
+
+        # Apply filters
+        if from_str and to_str:
+            logs = logs.filter(DATE__gte=from_str, DATE__lte=to_str)
+        elif date_str:
+            logs = logs.filter(DATE=date_str)
+            
+        if operator_id_filter:
+            logs = logs.filter(OPERATOR_ID=operator_id_filter)
+
+        # RFID to Operator Name mapping
+        operator_rfid_mapping = {
+            "3658143475": "OPERATOR-01",
+            "3658143476": "OPERATOR-02", 
+            "3658143477": "OPERATOR-03",
+            "3658143478": "OPERATOR-04",
+            "3658143479": "OPERATOR-05",
+            # Add more mappings as needed
+        }
+
+        # Convert to raw data format
+        raw_data = []
+        for idx, log in enumerate(logs, 1):
+            operator_id = getattr(log, 'OPERATOR_ID', '')
+            operator_name = operator_rfid_mapping.get(str(operator_id), f"OPERATOR-{operator_id}" if operator_id else "Unknown")
+            
+            raw_data.append({
+                "S.No": idx,
+                "Operator ID": operator_id,
+                "Operator Name": operator_name,
+                "Machine ID": log.MACHINE_ID,
+                "Line Number": getattr(log, 'LINE_NUMB', ''),
+                "Date": log.DATE,
+                "Start Time": log.START_TIME.strftime("%H:%M:%S") if log.START_TIME else "",
+                "End Time": log.END_TIME.strftime("%H:%M:%S") if log.END_TIME else "",
+                "Mode": log.MODE,
+                "Mode Description": MODES.get(log.MODE, f"Unknown Mode {log.MODE}"),
+                "Stitch Count": getattr(log, 'STITCH_COUNT', 0),
+                "Needle Runtime": getattr(log, 'NEEDLE_RUNTIME', 0),
+                "Needle Stop Time": getattr(log, 'NEEDLE_STOP_TIME', ''),
+                "Duration": "",  # Calculate if needed
+                "SPM": getattr(log, 'RESERVE', 0),
+                "Calculation Value": getattr(log, 'RESERVE', 0),
+                "TX Log ID": getattr(log, 'Tx_LOGID', ''),
+                "STR Log ID": getattr(log, 'Str_LOGID', ''),
+                "Created At": getattr(log, 'created_at', '').strftime("%Y-%m-%d %H:%M:%S") if hasattr(log, 'created_at') and getattr(log, 'created_at') else ""
+            })
+
+        logger.info(f"Operator raw data records returned: {len(raw_data)}")
+        
+        return Response({
+            "raw_data": raw_data,
+            "total_records": len(raw_data)
+        })
+
