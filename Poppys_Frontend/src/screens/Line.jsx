@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { FaSearch } from "react-icons/fa";
 import { SiMicrosoftexcel } from "react-icons/si";
 import { FaCalendarAlt } from "react-icons/fa";
 import { FaDownload } from "react-icons/fa";
-import '../../assets/css/style.css'; // Import your CSS styles
+import '../../assets/css/style.css';
 import axios from "axios";
 import * as XLSX from "xlsx";
 
@@ -28,8 +28,8 @@ const tableHeaders = [
   "Stitch Count",
 ];
 
-// ✅ NEW: Raw data table headers
-const rawTableHeaders = [
+// Raw data table headers
+const rawDataHeaders = [
   "S.No",
   "Machine ID",
   "Line Number", 
@@ -45,6 +45,7 @@ const rawTableHeaders = [
   "Needle Stop Time",
   "Duration",
   "SPM",
+  "Calculation Value",
   "TX Log ID",
   "STR Log ID",
   "Created At"
@@ -61,14 +62,29 @@ const pieColors = [
 
 function getPieData(row) {
   return [
-    { name: "Sewing", value: row.sewing ?? 0 },
-    { name: "Idle", value: row.idle ?? 0 },
-    { name: "Rework", value: row.rework ?? 0 },
-    { name: "No Feeding", value: row.noFeeding ?? 0 },
-    { name: "Meeting", value: row.meeting ?? 0 },
-    { name: "Maintenance", value: row.maintenance ?? 0 },
-    { name: "Needle Break", value: row.needleBreak ?? 0 },
+    { name: "Sewing", value: parseFloat(row.sewingDecimal) || 0 },
+    { name: "Idle", value: parseFloat(row.idleDecimal) || 0 },
+    { name: "Rework", value: parseFloat(row.reworkDecimal) || 0 },
+    { name: "No Feeding", value: parseFloat(row.noFeedingDecimal) || 0 },
+    { name: "Meeting", value: parseFloat(row.meetingDecimal) || 0 },
+    { name: "Maintenance", value: parseFloat(row.maintenanceDecimal) || 0 },
+    { name: "Needle Break", value: parseFloat(row.needleBreakDecimal) || 0 },
   ];
+}
+
+function formatHoursMins(decimalHours) {
+  if (!decimalHours) return "0h 0m";
+  const totalMins = Math.round(Number(decimalHours) * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${h}h ${m}m`;
+}
+
+// Helper function to convert HH:MM to decimal hours for pie chart
+function convertHHMMToDecimal(timeStr) {
+  if (!timeStr || timeStr === "00:00") return 0;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours + (minutes / 60);
 }
 
 export default function Line({ 
@@ -79,63 +95,111 @@ export default function Line({
   selectedOperatorId: propSelectedOperatorId = "", 
   lineId: propLineId = "" 
 }) {
+  // Use props for date values, similar to Machine.jsx and Operator.jsx
   const [from, setFrom] = useState(propFrom);
   const [to, setTo] = useState(propTo);
+  const [lineId, setLineId] = useState(propLineId);
   const [search, setSearch] = useState("");
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [operatorId, setOperatorId] = useState(propLineId);
-  const [operatorOptions, setOperatorOptions] = useState([]);
+  const [lineOptions, setLineOptions] = useState([]);
   const rowsPerPage = 10;
   const [filtersActive, setFiltersActive] = useState(false);
-  
-  // ✅ NEW: Raw data state
   const [showRawData, setShowRawData] = useState(false);
   const [rawData, setRawData] = useState([]);
-  const [rawLoading, setRawLoading] = useState(false);
-  
-  // ✅ ADD: State for tile data from Line Report backend
-  const [tileData, setTileData] = useState({
-    tile1_productive_time: { percentage: 0, total_productive_hours: "00:00", total_hours: "00:00" },
-    tile2_needle_time: { percentage: 0 },
-    tile3_sewing_speed: { average_spm: 0 },
-    tile4_total_hours: { total_hours: "00:00" }
-  });
+  const [rawPage, setRawPage] = useState(1);
 
   // Update state when props change
   useEffect(() => {
     setFrom(propFrom);
     setTo(propTo);
-    setOperatorId(propLineId);
+    setLineId(propLineId);
   }, [propFrom, propTo, propLineId]);
 
-  // Dynamically fetch line IDs for dropdown
+  // ✅ Fetch line options once on component mount
   useEffect(() => {
-    if (!tableOnly) {
-      axios
-        .get("http://localhost:8000/api/poppys-line-logs/")
-        .then(res => {
-          const ids = (res.data.summary || []).map(row => row["Line ID"]);
-          setOperatorOptions([...new Set(ids)]);
-        })
-        .catch(() => setOperatorOptions([]));
-    }
-  }, [from, to, operatorId, tableOnly]);
+    axios
+      .get("http://localhost:8000/api/line-report/")
+      .then(res => {
+        const summary = res.data.summary || [];
+        const uniqueLineIds = [...new Set(summary.map(row => {
+          return row["Line Number"] || row["line_number"] || row["LINE_NUMBER"];
+        }).filter(Boolean))];
+        setLineOptions(uniqueLineIds);
+      })
+      .catch(() => setLineOptions([]));
+  }, []); // Only fetch once on component mount
 
-  // ✅ FIXED: Fetch data from Line Report backend with proper tile extraction
+  // ✅ Fetch raw data from backend with frontend filtering
+  const fetchRawData = async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      // Don't send date filters to API, we'll filter on frontend
+      if (lineId) params.line_id = lineId;
+
+      console.log("Line raw data request params:", params);
+
+      const res = await axios.get("http://localhost:8000/api/line-report/raw/", { params });
+      console.log("Line raw data response:", res.data);
+      
+      const backendRawRows = res.data.raw_data || res.data || [];
+
+      const mappedRawRows = backendRawRows.map((row, idx) => ({
+        sNo: idx + 1,
+        machineId: row["Machine ID"] || row["machine_id"] || "",
+        lineNumber: row["Line Number"] || row["line_number"] || "",
+        operatorId: row["Operator ID"] || row["operator_id"] || "",
+        operatorName: row["Operator Name"] || row["operator_name"] || "",
+        date: row["Date"] || row["date"] || "",
+        startTime: row["Start Time"] || row["start_time"] || "",
+        endTime: row["End Time"] || row["end_time"] || "",
+        mode: row["Mode"] || row["mode"] || "",
+        modeDescription: row["Mode Description"] || row["mode_description"] || getModelDescription(row["Mode"] || row["mode"]),
+        stitchCount: row["Stitch Count"] || row["stitch_count"] || "-",
+        needleRuntime: row["Needle Runtime"] || row["needle_runtime"] || "-",
+        needleStopTime: row["Needle Stop Time"] || row["needle_stop_time"] || "-",
+        duration: row["Duration"] || row["duration"] || "",
+        spm: row["SPM"] || row["spm"] || "0",
+        calculationValue: row["Calculation Value"] || row["calculation_value"] || "0",
+        txLogId: row["TX Log ID"] || row["tx_log_id"] || "",
+        strLogId: row["STR Log ID"] || row["str_log_id"] || "",
+        createdAt: row["Created At"] || row["created_at"] || ""
+      }));
+
+      console.log("Mapped line raw rows:", mappedRawRows);
+      setRawData(mappedRawRows);
+    } catch (err) {
+      console.error("Line raw data fetch error:", err);
+      setRawData([]);
+    }
+    setLoading(false);
+  };
+
+  // Helper function to get mode description
+  const getModelDescription = (mode) => {
+    const modeDescriptions = {
+      1: "Sewing",
+      2: "Idle", 
+      3: "No Feeding",
+      4: "Meeting",
+      5: "Maintenance", 
+      6: "Rework",
+      7: "Needle Break"
+    };
+    return modeDescriptions[mode] || "Unknown";
+  };
+
+  // ✅ Fetch data from line report endpoint with no date filtering on backend
   const fetchData = async () => {
     setLoading(true);
     try {
       const params = {};
-      if (from && to) {
-        params.from = from;
-        params.to = to;
-      } else if (from) {
-        params.date = from;
-      }
-      if (operatorId || propLineId) {
-        params.line_id = operatorId || propLineId;
+      
+      // Don't send date filters to backend, we'll filter on frontend
+      if (lineId) {
+        params.line_id = lineId;
       }
       if (propMachineId) {
         params.machine_id = propMachineId;
@@ -144,293 +208,357 @@ export default function Line({
         params.operator_id = propSelectedOperatorId;
       }
 
-      // ✅ FIXED: Call Line Report endpoint with parameters
-      const res = await axios.get("http://localhost:8000/api/line-report/", { params });
-
-      const backendRows = res.data.summary || [];
-
+      console.log("Fetching line data with params:", params);
+      
+      const response = await axios.get("http://localhost:8000/api/line-report/", { params });
+      
+      console.log("Backend response:", response.data);
+      
+      const backendRows = response.data.summary || [];
+      
+      // ✅ Map line-specific backend data to frontend structure
       const mappedRows = backendRows.map((row, idx) => {
-        const normalizedDate = row["Date"] || row["date"] || "";
+        const lineNumber = row["Line Number"] || row["line_number"] || row["LINE_NUMBER"];
+        
         return {
-          sNo: idx + 1,
-          date: normalizedDate,
-          // ✅ FIXED: Use correct field names from LineReport backend
-          lineNumber: row["Line Number"] ?? "",       // Fixed field name
-          totalHours: row["Total Hours"] ?? "00:00",  // Fixed with default
-          sewing: row["Sewing Hours"] ?? "00:00",
-          idle: row["Idle Hours"] ?? "00:00",
-          rework: row["Rework Hours"] ?? "00:00",
-          noFeeding: row["No feeding Hours"] ?? "00:00",
-          meeting: row["Meeting Hours"] ?? "00:00",
-          maintenance: row["Maintenance Hours"] ?? "00:00",
-          needleBreak: row["Needle Break"] ?? "00:00",
-          pt: row["PT %"] ?? 0,
-          npt: row["NPT %"] ?? 0,
-          needleRuntime: row["Needle Runtime %"] ?? 0,
-          sewingSpeed: row["SPM"] ?? 0,
-          stitchCount: row["Stitch Count"] ?? 0,
+          sNo: row["S.no"] || row["S.No"] || (idx + 1),
+          date: row["Date"] || "",
+          lineNumber: lineNumber || "N/A",
+          totalHours: row["Total Hours"] || "00:00",
+          sewing: row["Sewing Hours"] || "00:00",
+          idle: row["Idle Hours"] || "00:00",
+          rework: row["Rework Hours"] || "00:00",
+          noFeeding: row["No feeding Hours"] || "00:00",
+          meeting: row["Meeting Hours"] || "00:00",
+          maintenance: row["Maintenance Hours"] || "00:00",
+          needleBreak: row["Needle Break"] || "00:00",
+          // Add decimal versions for pie chart calculations
+          totalHoursDecimal: convertHHMMToDecimal(row["Total Hours"]) || 0,
+          sewingDecimal: convertHHMMToDecimal(row["Sewing Hours"]) || 0,
+          idleDecimal: convertHHMMToDecimal(row["Idle Hours"]) || 0,
+          reworkDecimal: convertHHMMToDecimal(row["Rework Hours"]) || 0,
+          noFeedingDecimal: convertHHMMToDecimal(row["No feeding Hours"]) || 0,
+          meetingDecimal: convertHHMMToDecimal(row["Meeting Hours"]) || 0,
+          maintenanceDecimal: convertHHMMToDecimal(row["Maintenance Hours"]) || 0,
+          needleBreakDecimal: convertHHMMToDecimal(row["Needle Break"]) || 0,
+          pt: row["PT %"] || 0,
+          npt: row["NPT %"] || 0,
+          needleRuntime: row["Needle Runtime %"] || 0,
+          sewingSpeed: row["SPM"] || 0,
+          stitchCount: row["Stitch Count"] || 0,
+          // ✅ Add tile data for access in component
+          tile1_productive_time: response.data.tile1_productive_time || {},
+          tile2_needle_time: response.data.tile2_needle_time || {},
+          tile3_sewing_speed: response.data.tile3_sewing_speed || {},
+          tile4_total_hours: response.data.tile4_total_hours || {}
         };
       });
-
+      
+      console.log("✅ Final mapped data:", mappedRows);
       setData(mappedRows);
 
-      // ✅ FIXED: Extract tile data from Line Report backend response
-      if (!tableOnly) {
-        setTileData({
-          tile1_productive_time: res.data.tile1_productive_time || { 
-            percentage: 0, 
-            total_productive_hours: "00:00", 
-            total_hours: "00:00" 
-          },
-          tile2_needle_time: res.data.tile2_needle_time || { percentage: 0 },
-          tile3_sewing_speed: res.data.tile3_sewing_speed || { average_spm: 0 },
-          tile4_total_hours: res.data.tile4_total_hours || { total_hours: "00:00" }
-        });
-      }
-
-    } catch (err) {
-      console.error("Line Report fetch error:", err);
+    } catch (error) {
+      console.error("Error fetching line data:", error);
       setData([]);
-      
-      // ✅ FIXED: Reset tile data on error
-      if (!tableOnly) {
-        setTileData({
-          tile1_productive_time: { percentage: 0, total_productive_hours: "00:00", total_hours: "00:00" },
-          tile2_needle_time: { percentage: 0 },
-          tile3_sewing_speed: { average_spm: 0 },
-          tile4_total_hours: { total_hours: "00:00" }
-        });
-      }
     }
     setLoading(false);
   };
 
-  // ✅ NEW: Fetch raw data function
-  const fetchRawData = async () => {
-    setRawLoading(true);
-    try {
-      const params = {};
-      if (from && to) {
-        params.from = from;
-        params.to = to;
-      } else if (from) {
-        params.date = from;
-      }
-      if (operatorId || propLineId) {
-        params.line_id = operatorId || propLineId;
-      }
-
-      // ✅ NEW: Call Line Raw Data endpoint
-      const res = await axios.get("http://localhost:8000/api/line-report/raw/", { params });
-      setRawData(res.data.raw_data || []);
-    } catch (err) {
-      console.error("Line Raw Data fetch error:", err);
-      setRawData([]);
-    }
-    setRawLoading(false);
-  };
-
+  // ✅ Only fetch when props change, not when filters change
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line
-  }, [from, to, operatorId, propMachineId, propSelectedOperatorId, propLineId]);
+  }, [propMachineId, propSelectedOperatorId, propLineId]); // Only fetch when props change, not filters
 
-  // ✅ UPDATED: Use fetched data directly (no additional filtering needed as backend handles it)
-  const filtered = data;
+  // ✅ Frontend filtering logic (same as Machine.jsx and Operator.jsx)
+  const applyFilters = (dataToFilter) => {
+    let filtered = [...dataToFilter];
+
+    // Apply date filters first
+    if (from && to) {
+      filtered = filtered.filter(row => {
+        if (!row.date) return false;
+        
+        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDate = new Date(rowDateStr);
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        
+        return rowDate >= fromDate && rowDate <= toDate;
+      });
+    } else if (from) {
+      filtered = filtered.filter(row => {
+        if (!row.date) return false;
+        
+        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDate = new Date(rowDateStr);
+        const fromDate = new Date(from);
+        
+        return rowDate >= fromDate;
+      });
+    } else if (to) {
+      filtered = filtered.filter(row => {
+        if (!row.date) return false;
+        
+        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDate = new Date(rowDateStr);
+        const toDate = new Date(to);
+        
+        return rowDate <= toDate;
+      });
+    }
+
+    // Apply line ID filter after date filters
+    if (lineId && lineId !== "") {
+      filtered = filtered.filter(row => 
+        row.lineNumber && row.lineNumber.toString() === lineId.toString()
+      );
+    }
+
+    return filtered;
+  };
+
+  // ✅ Apply filters to raw data
+  const applyRawDataFilters = (dataToFilter) => {
+    let filtered = [...dataToFilter];
+
+    // Apply date filters
+    if (from && to) {
+      filtered = filtered.filter(row => {
+        if (!row.date) return false;
+        
+        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDate = new Date(rowDateStr);
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        
+        return rowDate >= fromDate && rowDate <= toDate;
+      });
+    } else if (from) {
+      filtered = filtered.filter(row => {
+        if (!row.date) return false;
+        
+        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDate = new Date(rowDateStr);
+        const fromDate = new Date(from);
+        
+        return rowDate >= fromDate;
+      });
+    } else if (to) {
+      filtered = filtered.filter(row => {
+        if (!row.date) return false;
+        
+        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDate = new Date(rowDateStr);
+        const toDate = new Date(to);
+        
+        return rowDate <= toDate;
+      });
+    }
+
+    // Apply line ID filter
+    if (lineId && lineId !== "") {
+      filtered = filtered.filter(row => 
+        row.lineNumber && row.lineNumber.toString() === lineId.toString()
+      );
+    }
+
+    return filtered;
+  };
+
+  // ✅ Get line options logic
+  const getFilteredLineOptions = () => {
+    return lineOptions;
+  };
+
+  const getAvailableLineIds = () => {
+    if (!from && !to) return lineOptions;
+    
+    let dateFiltered = [...data];
+    
+    if (from && to) {
+      dateFiltered = dateFiltered.filter(row => {
+        if (!row.date) return false;
+        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDate = new Date(rowDateStr);
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        return rowDate >= fromDate && rowDate <= toDate;
+      });
+    } else if (from) {
+      dateFiltered = dateFiltered.filter(row => {
+        if (!row.date) return false;
+        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDate = new Date(rowDateStr);
+        const fromDate = new Date(from);
+        return rowDate >= fromDate;
+      });
+    } else if (to) {
+      dateFiltered = dateFiltered.filter(row => {
+        if (!row.date) return false;
+        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDate = new Date(rowDateStr);
+        const toDate = new Date(to);
+        return rowDate <= toDate;
+      });
+    }
+    
+    return [...new Set(dateFiltered.map(row => row.lineNumber).filter(Boolean))];
+  };
+
+  const availableLineOptions = getFilteredLineOptions();
+  const availableLineIds = getAvailableLineIds();
+
+  // ✅ Apply filters to data
+  const filtered = applyFilters(data);
+  const filteredRawData = applyRawDataFilters(rawData);
+
+  // ✅ Recalculate pie chart data based on filtered results
+  const sumByKey = (key) =>
+    filtered.reduce((sum, row) => sum + (parseFloat(row[key]) || 0), 0);
+
+  const totalHoursSum = sumByKey("totalHoursDecimal");
+  const sewingSum = sumByKey("sewingDecimal");
+  const idleSum = sumByKey("idleDecimal");
+  const reworkSum = sumByKey("reworkDecimal");
+  const noFeedingSum = sumByKey("noFeedingDecimal");
+  const meetingSum = sumByKey("meetingDecimal");
+  const maintenanceSum = sumByKey("maintenanceDecimal");
+  const needleBreakSum = sumByKey("needleBreakDecimal");
+
+  // ✅ Recalculate tile data based on filtered results
+  const pieRow = filtered[0] || {};
+  const tile1ProductivityData = pieRow.tile1_productive_time || {};
+  const tile2NeedleTimeData = pieRow.tile2_needle_time || {};
+  const tile3SewingSpeedData = pieRow.tile3_sewing_speed || {};
+  const tile4TotalHoursData = pieRow.tile4_total_hours || {};
+
+  // ✅ Update tile data to reflect filtered results
+  const tiles = [
+    {
+      label: "Productive Time %",
+      value: tile1ProductivityData.percentage + "%" || "0%",
+      bg: "tile-bg-blue",
+      color: "tile-color-blue",
+    },
+    {
+      label: "Needle Time %",
+      value: (tile2NeedleTimeData.percentage || 0) + "%",
+      bg: "tile-bg-green",
+      color: "tile-color-green",
+    },
+    { 
+      label: "Sewing Speed", 
+      value: tile3SewingSpeedData.average_spm || 0,
+      bg: "tile-bg-orange", 
+      color: "tile-color-orange" 
+    },
+    {
+      label: "Total Hours",
+      value: tile4TotalHoursData.total_hours || "00:00",
+      bg: "tile-bg-pink",
+      color: "tile-color-pink",
+    },
+  ];
+
+  // ✅ Pagination calculations
   const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const paginated = filtered.slice(
     (page - 1) * rowsPerPage,
     page * rowsPerPage
   );
 
-  // ✅ NEW: Raw data pagination
-  const rawPageCount = Math.max(1, Math.ceil(rawData.length / rowsPerPage));
-  const rawPaginated = rawData.slice(
-    (page - 1) * rowsPerPage,
-    page * rowsPerPage
+  // Raw data pagination
+  const rawRowsPerPage = 10;
+  const filteredRawPageCount = Math.max(1, Math.ceil(filteredRawData.length / rawRowsPerPage));
+  const filteredRawPaginated = filteredRawData.slice(
+    (rawPage - 1) * rawRowsPerPage,
+    rawPage * rawRowsPerPage
   );
 
-  // ✅ UPDATED: Use first row for pie chart or empty object
-  const pieRow = filtered[0] || {
-    sewing: "00:00",
-    idle: "00:00", 
-    rework: "00:00",
-    noFeeding: "00:00",
-    meeting: "00:00",
-    maintenance: "00:00",
-    needleBreak: "00:00"
-  };
-
-  // ✅ FIXED: Use Line tile data with correct structure
-  const tiles = [
-    {
-      label: "Productive Time %",
-      value: `${tileData.tile1_productive_time.percentage}%`,
-      bg: "tile-bg-blue",
-      color: "tile-color-blue",
-    },
-    {
-      label: "Needle Time %", 
-      value: `${tileData.tile2_needle_time.percentage}%`,
-      bg: "tile-bg-green",
-      color: "tile-color-green",
-    },
-    {
-      label: "Sewing Speed",
-      value: `${tileData.tile3_sewing_speed.average_spm} SPM`,
-      bg: "tile-bg-orange", 
-      color: "tile-color-orange"
-    },
-    {
-      label: "Total Hours",
-      value: tileData.tile4_total_hours.total_hours,
-      bg: "tile-bg-pink",
-      color: "tile-color-pink",
-    },
-  ];
-
+  // ✅ Event handlers
   const handleReset = () => {
     setFrom("");
     setTo("");
     setSearch("");
     setPage(1);
-    setOperatorId("");
+    setRawPage(1);
+    setLineId("");
     setFiltersActive(false);
-    setShowRawData(false); // ✅ NEW: Reset raw data view
     fetchData();
   };
 
   const handleGenerate = () => {
     setPage(1);
     setFiltersActive(true);
-    if (showRawData) {
-      fetchRawData();
-    } else {
-      fetchData();
-    }
+    // The filtering happens automatically through the filtered variable
   };
 
+  // ✅ Export functions for summary data
   const handleCSV = () => {
-    // ✅ NEW: Handle both summary and raw data CSV export
-    const currentData = showRawData ? rawData : filtered;
-    const currentHeaders = showRawData ? rawTableHeaders : tableHeaders;
-    
-    let csvRows;
-    if (showRawData) {
-      csvRows = currentData.map(row => [
-        row["S.No"],
-        row["Machine ID"],
-        row["Line Number"],
-        row["Operator ID"],
-        row["Operator Name"],
-        row["Date"],
-        row["Start Time"],
-        row["End Time"],
-        row["Mode"],
-        row["Mode Description"],
-        row["Stitch Count"],
-        row["Needle Runtime"],
-        row["Needle Stop Time"],
-        row["Duration"],
-        row["SPM"],
-        row["TX Log ID"],
-        row["STR Log ID"],
-        row["Created At"]
-      ]);
-    } else {
-      csvRows = currentData.map(row => [
-        row.sNo,
-        row.date,
-        row.lineNumber,
-        row.totalHours,
-        row.sewing,
-        row.idle,
-        row.rework,
-        row.noFeeding,
-        row.meeting,
-        row.maintenance,
-        row.needleBreak,
-        row.pt,
-        row.npt,
-        row.needleRuntime,
-        row.sewingSpeed,
-        row.stitchCount,
-      ]);
-    }
-
     const csv = [
-      currentHeaders.join(","),
-      ...csvRows.map(row => row.join(","))
+      tableHeaders.join(","),
+      ...filtered.map((row, idx) =>
+        [
+          idx + 1,
+          row.date,
+          row.lineNumber,
+          row.totalHours,
+          row.sewing,
+          row.idle,
+          row.rework,
+          row.noFeeding,
+          row.meeting,
+          row.maintenance,
+          row.needleBreak,
+          row.pt,
+          row.npt,
+          row.needleRuntime,
+          row.sewingSpeed,
+          row.stitchCount,
+        ].join(",")
+      ),
     ].join("\n");
-    
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `line_report_${showRawData ? 'raw' : 'summary'}.csv`;
+    a.download = "line_report.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleHTML = () => {
-    // ✅ NEW: Handle both summary and raw data HTML export
-    const currentData = showRawData ? rawData : filtered;
-    const currentHeaders = showRawData ? rawTableHeaders : tableHeaders;
-    
-    let htmlRows;
-    if (showRawData) {
-      htmlRows = currentData.map(row => `
-        <tr>
-          <td>${row["S.No"]}</td>
-          <td>${row["Machine ID"]}</td>
-          <td>${row["Line Number"]}</td>
-          <td>${row["Operator ID"]}</td>
-          <td>${row["Operator Name"]}</td>
-          <td>${row["Date"]}</td>
-          <td>${row["Start Time"]}</td>
-          <td>${row["End Time"]}</td>
-          <td>${row["Mode"]}</td>
-          <td>${row["Mode Description"]}</td>
-          <td>${row["Stitch Count"]}</td>
-          <td>${row["Needle Runtime"]}</td>
-          <td>${row["Needle Stop Time"]}</td>
-          <td>${row["Duration"]}</td>
-          <td>${row["SPM"]}</td>
-          <td>${row["TX Log ID"]}</td>
-          <td>${row["STR Log ID"]}</td>
-          <td>${row["Created At"]}</td>
-        </tr>
-      `);
-    } else {
-      htmlRows = currentData.map(row => `
-        <tr>
-          <td>${row.sNo}</td>
-          <td>${row.date}</td>
-          <td>${row.lineNumber}</td>
-          <td>${row.totalHours}</td>
-          <td>${row.sewing}</td>
-          <td>${row.idle}</td>
-          <td>${row.rework}</td>
-          <td>${row.noFeeding}</td>
-          <td>${row.meeting}</td>
-          <td>${row.maintenance}</td>
-          <td>${row.needleBreak}</td>
-          <td>${row.pt}</td>
-          <td>${row.npt}</td>
-          <td>${row.needleRuntime}</td>
-          <td>${row.sewingSpeed}</td>
-          <td>${row.stitchCount}</td>
-        </tr>
-      `);
-    }
-
     const html = `
       <table border="1">
         <thead>
-          <tr>${currentHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>
+          <tr>${tableHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>
         </thead>
         <tbody>
-          ${htmlRows.join("")}
+          ${filtered
+            .map(
+              (row, idx) => `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>${row.date}</td>
+              <td>${row.lineNumber}</td>
+              <td>${row.totalHours}</td>
+              <td>${row.sewing}</td>
+              <td>${row.idle}</td>
+              <td>${row.rework}</td>
+              <td>${row.noFeeding}</td>
+              <td>${row.meeting}</td>
+              <td>${row.maintenance}</td>
+              <td>${row.needleBreak}</td>
+              <td>${row.pt}</td>
+              <td>${row.npt}</td>
+              <td>${row.needleRuntime}</td>
+              <td>${row.sewingSpeed}</td>
+              <td>${row.stitchCount}</td>
+            </tr>
+          `
+            )
+            .join("")}
         </tbody>
       </table>
     `;
@@ -438,63 +566,157 @@ export default function Line({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `line_report_${showRawData ? 'raw' : 'summary'}.html`;
+    a.download = "line_report.html";
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  // ✅ NEW: Handle raw data view toggle
+  // ✅ Export functions for raw data
+  const handleRawCSV = () => {
+    const csv = [
+      rawDataHeaders.join(","),
+      ...filteredRawData.map((row, idx) =>
+        [
+          idx + 1,
+          row.machineId,
+          row.lineNumber,
+          row.operatorId,
+          row.operatorName,
+          row.date,
+          row.startTime,
+          row.endTime,
+          row.mode,
+          row.modeDescription,
+          row.stitchCount,
+          row.needleRuntime,
+          row.needleStopTime,
+          row.duration,
+          row.spm,
+          row.calculationValue,
+          row.txLogId,
+          row.strLogId,
+          row.createdAt,
+        ].join(",")
+      ),
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "line_raw_data.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRawHTML = () => {
+    const html = `
+      <table border="1">
+        <thead>
+          <tr>${rawDataHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${filteredRawData
+            .map(
+              (row, idx) => `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>${row.machineId}</td>
+              <td>${row.lineNumber}</td>
+              <td>${row.operatorId}</td>
+              <td>${row.operatorName}</td>
+              <td>${row.date}</td>
+              <td>${row.startTime}</td>
+              <td>${row.endTime}</td>
+              <td>${row.mode}</td>
+              <td>${row.modeDescription}</td>
+              <td>${row.stitchCount}</td>
+              <td>${row.needleRuntime}</td>
+              <td>${row.needleStopTime}</td>
+              <td>${row.duration}</td>
+              <td>${row.spm}</td>
+              <td>${row.calculationValue}</td>
+              <td>${row.txLogId}</td>
+              <td>${row.strLogId}</td>
+              <td>${row.createdAt}</td>
+            </tr>
+          `
+            )
+            .join("")}
+        </tbody>
+      </table>
+    `;
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "line_raw_data.html";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleRawData = () => {
-    setShowRawData(!showRawData);
-    setPage(1); // Reset to first page
-    if (!showRawData) {
-      fetchRawData(); // Fetch raw data when switching to raw view
+    if (showRawData) {
+      setShowRawData(false);
+    } else {
+      setShowRawData(true);
+      fetchRawData();
     }
   };
 
-  const handleSummary = () => {
-    console.log("Summary view requested");
-  };
+  // ✅ Pagination components
+  const Pagination = () => (
+    <div className="machine-pagination">
+      <button
+        onClick={() => setPage((p) => Math.max(1, p - 1))}
+        disabled={page === 1}
+        className="machine-btn machine-btn-blue"
+      >
+        Prev
+      </button>
+      <span className="machine-pagination-label">
+        Page {page} of {pageCount}
+      </span>
+      <button
+        onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+        disabled={page === pageCount}
+        className="machine-btn machine-btn-blue"
+      >
+        Next
+      </button>
+    </div>
+  );
 
-  const Pagination = () => {
-    const currentPageCount = showRawData ? rawPageCount : pageCount;
-    
-    return (
-      <div className="machine-pagination">
-        <button
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={page === 1}
-          className="machine-btn machine-btn-blue"
-        >
-          Prev
-        </button>
-        <span className="machine-pagination-label">
-          Page {page} of {currentPageCount}
-        </span>
-        <button
-          onClick={() => setPage((p) => Math.min(currentPageCount, p + 1))}
-          disabled={page === currentPageCount}
-          className="machine-btn machine-btn-blue"
-        >
-          Next
-        </button>
-      </div>
-    );
-  };
+  const RawPagination = () => (
+    <div className="machine-pagination">
+      <button
+        onClick={() => setRawPage((p) => Math.max(1, p - 1))}
+        disabled={rawPage === 1}
+        className="machine-btn machine-btn-blue"
+      >
+        Prev
+      </button>
+      <span className="machine-pagination-label">
+        Page {rawPage} of {filteredRawPageCount}
+      </span>
+      <button
+        onClick={() => setRawPage((p) => Math.min(filteredRawPageCount, p + 1))}
+        disabled={rawPage === filteredRawPageCount}
+        className="machine-btn machine-btn-blue"
+      >
+        Next
+      </button>
+    </div>
+  );
 
-  // ✅ ADD: If tableOnly mode, return only the table
+  // If tableOnly mode, return only the table
   if (tableOnly) {
-    const currentHeaders = showRawData ? rawTableHeaders : tableHeaders;
-    const currentData = showRawData ? rawPaginated : paginated;
-    const currentLoading = showRawData ? rawLoading : loading;
-
     return (
       <div className="machine-table-card">
         <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
           <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
             <thead>
               <tr>
-                {currentHeaders.map((h) => (
+                {tableHeaders.map((h) => (
                   <th
                     key={h}
                     style={{
@@ -515,43 +737,17 @@ export default function Line({
               </tr>
             </thead>
             <tbody>
-              {currentLoading ? (
+              {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={currentHeaders.length} className="machine-table-nodata">
-                    Loading...
+                  <td
+                    colSpan={tableHeaders.length}
+                    className="machine-table-nodata"
+                  >
+                    {loading ? "Loading..." : "No data found."}
                   </td>
                 </tr>
-              ) : currentData.length === 0 ? (
-                <tr>
-                  <td colSpan={currentHeaders.length} className="machine-table-nodata">
-                    No data found.
-                  </td>
-                </tr>
-              ) : showRawData ? (
-                currentData.map((row, idx) => (
-                  <tr key={idx}>
-                    <td>{row["S.No"]}</td>
-                    <td>{row["Machine ID"]}</td>
-                    <td>{row["Line Number"]}</td>
-                    <td>{row["Operator ID"]}</td>
-                    <td>{row["Operator Name"]}</td>
-                    <td>{row["Date"]}</td>
-                    <td>{row["Start Time"]}</td>
-                    <td>{row["End Time"]}</td>
-                    <td>{row["Mode"]}</td>
-                    <td>{row["Mode Description"]}</td>
-                    <td>{row["Stitch Count"]}</td>
-                    <td>{row["Needle Runtime"]}</td>
-                    <td>{row["Needle Stop Time"]}</td>
-                    <td>{row["Duration"]}</td>
-                    <td>{row["SPM"]}</td>
-                    <td>{row["TX Log ID"]}</td>
-                    <td>{row["STR Log ID"]}</td>
-                    <td>{row["Created At"]}</td>
-                  </tr>
-                ))
               ) : (
-                currentData.map((row, idx) => (
+                paginated.map((row, idx) => (
                   <tr key={idx}>
                     <td>{row.sNo}</td>
                     <td>{row.date}</td>
@@ -580,37 +776,33 @@ export default function Line({
     );
   }
 
-  const currentHeaders = showRawData ? rawTableHeaders : tableHeaders;
-  const currentData = showRawData ? rawPaginated : paginated;
-  const currentLoading = showRawData ? rawLoading : loading;
-
-  // ✅ EXISTING: Full component view when not in tableOnly mode
+  // Main component rendering
   return (
     <div className="machine-root">
       {/* Title and Buttons Row */}
       <div className="machine-title-row">
         <div className="machine-title">
-          Line Table {showRawData ? "- Raw Data" : ""}
+          {showRawData ? 'Line Raw Data' : 'Line Report Table'}
         </div>
         <div className="machine-title-btns">
           <button
             type="button"
             className="machine-btn machine-btn-csv"
-            onClick={handleCSV}
+            onClick={showRawData ? handleRawCSV : handleCSV}
           >
             <SiMicrosoftexcel className="machine-btn-icon" /> CSV
           </button>
           <button
             type="button"
             className="machine-btn machine-btn-html"
-            onClick={handleHTML}
+            onClick={showRawData ? handleRawHTML : handleHTML}
           >
             <FaDownload className="machine-btn-icon" />
             HTML
           </button>
           <button
             type="button"
-            className={`machine-btn ${showRawData ? 'machine-btn-blue' : 'machine-btn-raw'}`}
+            className={`machine-btn ${showRawData ? 'machine-btn-orange' : 'machine-btn-raw'}`}
             onClick={handleRawData}
           >
             <FaDownload className="machine-btn-icon" />
@@ -619,158 +811,323 @@ export default function Line({
         </div>
       </div>
 
-      {/* Table Card */}
-      <div className="machine-table-card">
-        {/* Filters and Actions inside table card */}
-        <div className="machine-header-actions" style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ display: "flex", gap: 25, alignItems: "center", flexWrap: "wrap" }}>
-            <div className="date-input-group" style={{ display: "flex", gap: 8 }}>
-              <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span><FaCalendarAlt className="calendar-icon" /></span>
-                <input
-                  type="date"
-                  value={from}
-                  onChange={(e) => setFrom(e.target.value)}
-                  className="date-input"
-                  style={{ width: 110 }}
-                />
-                <span className="date-label" style={{ fontSize: 12 }}>From</span>
+      {/* Conditional rendering based on showRawData */}
+      {showRawData ? (
+        /* Raw Data Table - Show when showRawData is true */
+        <div className="machine-table-card" style={{ marginTop: '20px' }}>
+          {/* Raw Data Filters */}
+          <div className="machine-header-actions" style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ display: "flex", gap: 25, alignItems: "center", flexWrap: "wrap" }}>
+              <div className="date-input-group" style={{ display: "flex", gap: 8 }}>
+                <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span><FaCalendarAlt className="calendar-icon" /></span>
+                  <input
+                    type="date"
+                    value={from}
+                    onChange={(e) => {
+                      setFrom(e.target.value);
+                      setRawPage(1);
+                    }}
+                    className="date-input"
+                    style={{ width: 110 }}
+                  />
+                  <span className="date-label" style={{ fontSize: 12 }}>From</span>
+                </div>
+                <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span><FaCalendarAlt className="calendar-icon" /></span>
+                  <input
+                    type="date"
+                    value={to}
+                    onChange={(e) => {
+                      setTo(e.target.value);
+                      setRawPage(1);
+                    }}
+                    className="date-input"
+                    style={{ width: 110 }}
+                  />
+                  <span className="date-label" style={{ fontSize: 12 }}>To</span>
+                </div>
               </div>
-              <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span><FaCalendarAlt className="calendar-icon" /></span>
-                <input
-                  type="date"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
-                  className="date-input"
-                  style={{ width: 110 }}
-                />
-                <span className="date-label" style={{ fontSize: 12 }}>To</span>
+
+              <select
+                value={lineId}
+                onChange={(e) => {
+                  setLineId(e.target.value);
+                  setRawPage(1);
+                }}
+                className="machine-select"
+                style={{ minWidth: 120, height: 42, fontSize: 14 }}
+              >
+                <option value="">Select Line ID</option>
+                {availableLineOptions.map((id) => (
+                  <option key={id} value={id}>{id}</option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                className="machine-btn machine-btn-red machine-btn-reset"
+                onClick={() => {
+                  setFrom("");
+                  setTo("");
+                  setLineId("");
+                  setRawPage(1);
+                }}
+                style={{ height: 32, fontSize: 14, padding: "0 16px" }}
+              >
+                Reset Filters
+              </button>
+            </div>
+          </div>
+
+          {/* Raw Data Filter Status */}
+          {(from || to || lineId) && (
+            <div style={{ 
+              padding: "8px 16px", 
+              marginBottom: "16px", 
+              backgroundColor: filteredRawData.length > 0 ? "#e3f2fd" : "#ffebee", 
+              borderRadius: "4px", 
+              fontSize: "14px",
+              color: filteredRawData.length > 0 ? "#1976d2" : "#d32f2f"
+            }}>
+              <strong>Active Filters:</strong>
+              {from && <span style={{ marginLeft: "8px" }}>From: {from}</span>}
+              {to && <span style={{ marginLeft: "8px" }}>To: {to}</span>}
+              {lineId && <span style={{ marginLeft: "8px" }}>Line: {lineId}</span>}
+              <span style={{ marginLeft: "8px" }}>({filteredRawData.length} of {rawData.length} records)</span>
+              {filteredRawData.length === 0 && (
+                <div style={{ marginTop: "4px", fontWeight: "bold" }}>
+                  ⚠️ No raw data found for the selected combination. Try adjusting your filters.
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
+            <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
+              <thead>
+                <tr>
+                  {rawDataHeaders.map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        whiteSpace: "nowrap",
+                        padding: "8px 12px",
+                        textAlign: "center",
+                        border: "1px solid #e2e8f0",
+                        background: "#ffecb3", // Yellow background like Machine.jsx
+                        fontWeight: 600,
+                        fontSize: "14px",
+                        minWidth: "100px",
+                        color: "#000",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRawPaginated.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={rawDataHeaders.length}
+                      className="machine-table-nodata"
+                    >
+                      {loading ? "Loading raw data..." : (from || to || lineId) ? "No raw data found for the selected filters." : "No raw data found."}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRawPaginated.map((row, idx) => (
+                    <tr key={idx}>
+                      <td>{(rawPage - 1) * rawRowsPerPage + idx + 1}</td>
+                      <td>{row.machineId}</td>
+                      <td>{row.lineNumber}</td>
+                      <td>{row.operatorId}</td>
+                      <td>{row.operatorName}</td>
+                      <td>{row.date}</td>
+                      <td>{row.startTime}</td>
+                      <td>{row.endTime}</td>
+                      <td>{row.mode}</td>
+                      <td>{row.modeDescription}</td>
+                      <td>{row.stitchCount}</td>
+                      <td>{row.needleRuntime}</td>
+                      <td>{row.needleStopTime}</td>
+                      <td>{row.duration}</td>
+                      <td>{row.spm}</td>
+                      <td>{row.calculationValue}</td>
+                      <td>{row.txLogId}</td>
+                      <td>{row.strLogId}</td>
+                      <td>{row.createdAt}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <RawPagination />
+        </div>
+      ) : (
+        /* Summary View - Show when showRawData is false */
+        <>
+          {/* Table Card */}
+          <div className="machine-table-card">
+            {/* Filters and Actions inside table card */}
+            <div className="machine-header-actions" style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 25, alignItems: "center", flexWrap: "wrap" }}>
+                <div className="date-input-group" style={{ display: "flex", gap: 8 }}>
+                  <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span><FaCalendarAlt className="calendar-icon" /></span>
+                    <input
+                      type="date"
+                      value={from}
+                      onChange={(e) => setFrom(e.target.value)}
+                      className="date-input"
+                      style={{ width: 110 }}
+                    />
+                    <span className="date-label" style={{ fontSize: 12 }}>From</span>
+                  </div>
+                  <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span><FaCalendarAlt className="calendar-icon" /></span>
+                    <input
+                      type="date"
+                      value={to}
+                      onChange={(e) => setTo(e.target.value)}
+                      className="date-input"
+                      style={{ width: 110 }}
+                    />
+                    <span className="date-label" style={{ fontSize: 12 }}>To</span>
+                  </div>
+                </div>
+                <select
+                  value={lineId}
+                  onChange={(e) => setLineId(e.target.value)}
+                  className="machine-select"
+                  style={{ minWidth: 120, height: 42, fontSize: 14 }}
+                >
+                  <option value="">Select Line ID</option>
+                  {availableLineOptions.map((id) => {
+                    const isAvailable = availableLineIds.includes(id);
+                    return (
+                      <option 
+                        key={id} 
+                        value={id}
+                        style={{
+                          color: (from || to) && !isAvailable ? '#999' : '#000',
+                          fontStyle: (from || to) && !isAvailable ? 'italic' : 'normal'
+                        }}
+                      >
+                        {id} {(from || to) && !isAvailable ? '(No data in date range)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+                <button
+                  type="button"
+                  className="machine-btn machine-btn-blue machine-btn-generate"
+                  onClick={handleGenerate}
+                  disabled={loading}
+                >
+                  {loading ? "Loading..." : "Generate"}
+                </button>
+
+                <button
+                  type="button"
+                  className="machine-btn machine-btn-red machine-btn-reset"
+                  onClick={handleReset}
+                  style={{ height: 32, fontSize: 14, padding: "0 16px" }}
+                >
+                  Reset
+                </button>
               </div>
             </div>
-            <select
-              value={operatorId}
-              onChange={(e) => setOperatorId(e.target.value)}
-              className="machine-select"
-              style={{ minWidth: 120, height: 42, fontSize: 14 }}
-            >
-              <option value="">Select Line ID</option>
-              {operatorOptions.map((id) => (
-                <option key={id} value={id}>{id}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="machine-btn machine-btn-blue machine-btn-generate"
-              onClick={handleGenerate}
-              disabled={currentLoading}
-            >
-              {currentLoading ? "Loading..." : "Generate"}
-            </button>
 
-            <button
-              type="button"
-              className="machine-btn machine-btn-red machine-btn-reset"
-              onClick={handleReset}
-              style={{ height: 32, fontSize: 14, padding: "0 16px" }}
-            >
-              Reset
-            </button>
+            {/* Filter Status */}
+            {(from || to || lineId) && (
+              <div style={{ 
+                padding: "8px 16px", 
+                marginBottom: "16px", 
+                backgroundColor: filtered.length > 0 ? "#e3f2fd" : "#ffebee", 
+                borderRadius: "4px", 
+                fontSize: "14px",
+                color: filtered.length > 0 ? "#1976d2" : "#d32f2f"
+              }}>
+                <strong>Active Filters:</strong>
+                {from && <span style={{ marginLeft: "8px" }}>From: {from}</span>}
+                {to && <span style={{ marginLeft: "8px" }}>To: {to}</span>}
+                {lineId && <span style={{ marginLeft: "8px" }}>Line: {lineId}</span>}
+                <span style={{ marginLeft: "8px" }}>({filtered.length} of {data.length} records)</span>
+                {filtered.length === 0 && (
+                  <div style={{ marginTop: "4px", fontWeight: "bold" }}>
+                    ⚠️ No data found for the selected combination. Try adjusting your filters.
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
+              <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
+                <thead>
+                  <tr>
+                    {tableHeaders.map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          whiteSpace: "nowrap",
+                          padding: "8px 12px",
+                          textAlign: "center",
+                          border: "1px solid #e2e8f0",
+                          background: "#d3edff",
+                          fontWeight: 600,
+                          fontSize: "15px",
+                          minWidth: "110px",
+                          color: "#000",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginated.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={tableHeaders.length}
+                        className="machine-table-nodata"
+                      >
+                        {(from || to || lineId) ? "No data found for the selected filters." : "No data found."}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginated.map((row, idx) => (
+                      <tr key={idx}>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.sNo}</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.date}</td>
+                        <td style={{ textAlign: 'center', padding: '8px', fontWeight: 'bold' }}>{row.lineNumber}</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.totalHours}</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.sewing}</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.idle}</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.rework}</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.noFeeding}</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.meeting}</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.maintenance}</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.needleBreak}</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.pt}%</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.npt}%</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.needleRuntime}%</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.sewingSpeed}</td>
+                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.stitchCount}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <Pagination />
           </div>
-        </div>
 
-        <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
-          <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
-            <thead>
-              <tr>
-                {currentHeaders.map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      whiteSpace: "nowrap",
-                      padding: "8px 12px",
-                      textAlign: "center",
-                      border: "1px solid #e2e8f0",
-                      background: "#d3edff",
-                      fontWeight: 600,
-                      fontSize: "15px",
-                      minWidth: "110px",
-                      color: "#000",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {currentLoading ? (
-                <tr>
-                  <td colSpan={currentHeaders.length} className="machine-table-nodata">
-                    Loading...
-                  </td>
-                </tr>
-              ) : currentData.length === 0 ? (
-                <tr>
-                  <td colSpan={currentHeaders.length} className="machine-table-nodata">
-                    No data found.
-                  </td>
-                </tr>
-              ) : showRawData ? (
-                currentData.map((row, idx) => (
-                  <tr key={idx}>
-                    <td>{row["S.No"]}</td>
-                    <td>{row["Machine ID"]}</td>
-                    <td>{row["Line Number"]}</td>
-                    <td>{row["Operator ID"]}</td>
-                    <td>{row["Operator Name"]}</td>
-                    <td>{row["Date"]}</td>
-                    <td>{row["Start Time"]}</td>
-                    <td>{row["End Time"]}</td>
-                    <td>{row["Mode"]}</td>
-                    <td>{row["Mode Description"]}</td>
-                    <td>{row["Stitch Count"]}</td>
-                    <td>{row["Needle Runtime"]}</td>
-                    <td>{row["Needle Stop Time"]}</td>
-                    <td>{row["Duration"]}</td>
-                    <td>{row["SPM"]}</td>
-                    <td>{row["TX Log ID"]}</td>
-                    <td>{row["STR Log ID"]}</td>
-                    <td>{row["Created At"]}</td>
-                  </tr>
-                ))
-              ) : (
-                currentData.map((row, idx) => (
-                  <tr key={idx}>
-                    <td>{row.sNo}</td>
-                    <td>{row.date}</td>
-                    <td>{row.lineNumber}</td>
-                    <td>{row.totalHours}</td>
-                    <td>{row.sewing}</td>
-                    <td>{row.idle}</td>
-                    <td>{row.rework}</td>
-                    <td>{row.noFeeding}</td>
-                    <td>{row.meeting}</td>
-                    <td>{row.maintenance}</td>
-                    <td>{row.needleBreak}</td>
-                    <td>{row.pt}%</td>
-                    <td>{row.npt}%</td>
-                    <td>{row.needleRuntime}%</td>
-                    <td>{row.sewingSpeed}</td>
-                    <td>{row.stitchCount}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        <Pagination />
-      </div>
-
-      {/* ✅ HIDE: Tiles and Pie Chart when showing raw data */}
-      {!showRawData && (
-        <>
-          {/* ✅ FIXED: Tiles Row - Use Line tile data */}
+          {/* ✅ Tiles Row - Use line tile data */}
           <div className="machine-tiles-row machine-tiles-row-full">
             {tiles.map((tile, idx) => (
               <div
@@ -784,45 +1141,74 @@ export default function Line({
           </div>
 
           {/* Pie Chart Card - Full width */}
-          <div className="machine-pie-card machine-pie-card-full">
-            <div className="machine-pie-chart machine-pie-chart-large">
-              <ResponsiveContainer width="100%" height={380}>
+          <div className="machine-pie-card machine-pie-card-full" style={{ display: 'flex', alignItems: 'center', gap: '2rem', minHeight: '400px', padding: '35px', }}>
+            <div className="machine-pie-chart machine-pie-chart-large" style={{ minWidth: 420, width: 420, height: 380, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={getPieData(pieRow)}
+                    data={[
+                      { name: "Sewing", value: Math.max(sewingSum, 0.01) },
+                      { name: "Idle", value: Math.max(idleSum, 0.01) },
+                      { name: "Rework", value: Math.max(reworkSum, 0.01) },
+                      { name: "No Feeding", value: Math.max(noFeedingSum, 0.01) },
+                      { name: "Meeting", value: Math.max(meetingSum, 0.01) },
+                      { name: "Maintenance", value: Math.max(maintenanceSum, 0.01) },
+                      { name: "Needle Break", value: Math.max(needleBreakSum, 0.01) },
+                    ]}
                     dataKey="value"
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    outerRadius={170}
-                    innerRadius={100}
+                    outerRadius={120}
+                    innerRadius={60}
                     labelLine={false}
-                    label={({ name }) => name}
+                    label={false}
                   >
-                    {getPieData(pieRow).map((_, i) => (
-                      <Cell key={i} fill={pieColors[i % pieColors.length]} />
+                    {[
+                      sewingSum,
+                      idleSum,
+                      reworkSum,
+                      noFeedingSum,
+                      meetingSum,
+                      maintenanceSum,
+                      needleBreakSum,
+                    ].map((_, i) => (
+                      <Cell key={i} fill={pieColors[i % pieColors.length]}  
+                      style={{ cursor: 'pointer' }} />
                     ))}
                   </Pie>
+                  <Tooltip 
+                    formatter={(value, name) => [
+                      `${formatHoursMins(value)} (${((value / totalHoursSum) * 100).toFixed(1)}%)`,
+                      name
+                    ]}
+                    labelStyle={{ color: '#000' }}
+                    contentStyle={{ 
+                      backgroundColor: '#fff', 
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="machine-pie-info">
-              {getPieData(pieRow).map((item, idx) => (
-                <div className="machine-pie-label" key={item.name}>
-                  <span
-                    className="machine-pie-dot"
-                    style={{
-                      background: pieColors[idx % pieColors.length],
-                    }}
-                  ></span>
-                  <span className="machine-pie-name">
-                    {item.name}:
-                  </span>
-                  <span className="machine-pie-value">
-                    {item.value} hrs
-                  </span>
-                </div>
-              ))}
+            <div className="machine-pie-info" style={{ flex: 1, padding: '1rem' }}>
+              <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '16px' }}>
+                Hours Breakdown (Filtered Results: {formatHoursMins(totalHoursSum)})
+              </div>
+              <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>
+                <b>Total Hours:</b> {formatHoursMins(totalHoursSum)}
+              </div>
+              <div style={{ fontSize: '14px', lineHeight: '1.6' }}>
+                <div>{formatHoursMins(sewingSum)} : Sewing Hours</div>
+                <div>{formatHoursMins(idleSum)} : Idle Hours</div>
+                <div>{formatHoursMins(reworkSum)} : Rework Hours</div>
+                <div>{formatHoursMins(noFeedingSum)} : No Feeding Hours</div>
+                <div>{formatHoursMins(meetingSum)} : Meeting Hours</div>
+                <div>{formatHoursMins(maintenanceSum)} : Maintenance Hours</div>
+                <div>{formatHoursMins(needleBreakSum)} : Needle Break Hours</div>
+              </div>
             </div>
           </div>
         </>

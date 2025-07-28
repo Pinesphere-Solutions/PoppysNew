@@ -78,7 +78,6 @@ export default function Layout({ children }) {
             top: HEADER_HEIGHT,
             zIndex: 999,
             overflowX: "hidden",
-            overflowY: "auto"
           }}
         >
           <div
@@ -117,7 +116,7 @@ export default function Layout({ children }) {
               flexDirection: "column",
               flexWrap: "wrap", // allow wrapping on desktop
               maxHeight: "100vh",
-              overflowY: "auto"
+              
             }}
           >
             {menuItems.map(item =>

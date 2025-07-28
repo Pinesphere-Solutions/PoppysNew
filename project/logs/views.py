@@ -11,6 +11,29 @@ from .serializers import MachineLogSerializer
 import logging
 logger = logging.getLogger('poppys')
 from collections import defaultdict
+from .models import MachineLog, Operator  # ✅ Make sure Operator is imported
+
+
+
+# Operator MAster -  function at global level (after imports, before classes)
+def get_operator_name(operator_id):
+    """
+    Get operator name from database using RFID card number
+    Falls back to formatted name if not found
+    """
+    if not operator_id:
+        return "Unknown"
+    
+    try:
+        # Query database for operator name
+        operator = Operator.objects.get(rfid_card_no=str(operator_id))
+        return operator.operator_name
+    except Operator.DoesNotExist:
+        # Fallback to formatted name
+        return f"Operator-{operator_id}"
+    except Exception as e:
+        logger.warning(f"Error fetching operator name for ID {operator_id}: {e}")
+        return f"Operator-{operator_id}"
 
 """ Modes """
 MODES = {
@@ -1256,11 +1279,14 @@ class MachineRawDataReport(APIView):
             # Convert to raw data format
             raw_data = []
             for idx, log in enumerate(logs, 1):
+                operator_id = getattr(log, 'OPERATOR_ID', '')
+                operator_name = get_operator_name(operator_id)  # ✅ ADD THIS LINE
                 raw_data.append({
                     "S.No": idx,
                     "Machine ID": log.MACHINE_ID,
                     "Line Number": getattr(log, 'LINE_NUMB', ''),
                     "Operator ID": getattr(log, 'OPERATOR_ID', ''),
+                    "Operator Name": operator_name,  # ✅ USE THE RESOLVED NAME
                     "Date": log.DATE,
                     "Start Time": log.START_TIME.strftime("%H:%M:%S") if log.START_TIME else "",
                     "End Time": log.END_TIME.strftime("%H:%M:%S") if log.END_TIME else "",
@@ -1268,8 +1294,8 @@ class MachineRawDataReport(APIView):
                     "Mode Description": MODES.get(log.MODE, f"Unknown Mode {log.MODE}"),
                     "Stitch Count": getattr(log, 'STITCH_COUNT', 0),
                     "Needle Runtime": getattr(log, 'NEEDLE_RUNTIME', 0),
-                    "Needle Stop Time": getattr(log, 'NEEDLE_STOP_TIME', ''),
-                    "Duration": "",  # Calculate if needed
+                    "Needle Stop Time": getattr(log, 'NEEDLE_STOPTIME', ''),
+                    "Duration": getattr (log, 'DEVICE_ID', ''),
                     "SPM": getattr(log, 'RESERVE', 0),
                     "Calculation Value": getattr(log, 'RESERVE', 0),
                     "TX Log ID": getattr(log, 'Tx_LOGID', ''),
@@ -1799,23 +1825,16 @@ class LineRawDataReport(APIView):
         if line_id_filter:
             logs = logs.filter(LINE_NUMB=line_id_filter)
 
-        # RFID to Operator Name mapping
-        operator_rfid_mapping = {
-            "3658143475": "OPERATOR-01",
-            "3658143476": "OPERATOR-02", 
-            "3658143477": "OPERATOR-03",
-            "3658143478": "OPERATOR-04",
-            "3658143479": "OPERATOR-05",
-            # Add more mappings as needed
-        }
-
+  
         # Convert to raw data format
         raw_data = []
         for idx, log in enumerate(logs, 1):
             operator_id = getattr(log, 'OPERATOR_ID', '')
-            operator_name = operator_rfid_mapping.get(str(operator_id), f"OPERATOR-{operator_id}" if operator_id else "Unknown")
             
-            raw_data.append({
+       
+        operator_name = get_operator_name(operator_id)
+                        
+        raw_data.append({
                 "S.No": idx,
                 "Machine ID": log.MACHINE_ID,
                 "Line Number": getattr(log, 'LINE_NUMB', ''),
@@ -1828,8 +1847,8 @@ class LineRawDataReport(APIView):
                 "Mode Description": MODES.get(log.MODE, f"Unknown Mode {log.MODE}"),
                 "Stitch Count": getattr(log, 'STITCH_COUNT', 0),
                 "Needle Runtime": getattr(log, 'NEEDLE_RUNTIME', 0),
-                "Needle Stop Time": getattr(log, 'NEEDLE_STOP_TIME', ''),
-                "Duration": "",  # Calculate if needed
+                "Needle Stop Time": getattr(log, 'NEEDLE_STOPTIME', ''),
+                "Duration": getattr (log, 'DEVICE_ID', ''),  # Calculate if needed
                 "SPM": getattr(log, 'RESERVE', 0),
                 "TX Log ID": getattr(log, 'Tx_LOGID', ''),
                 "STR Log ID": getattr(log, 'Str_LOGID', ''),
@@ -1893,8 +1912,8 @@ class OperatorReport(APIView):
             # Add more mappings as needed
         }
         
-        logger.info("=== RFID OPERATOR MAPPING INITIALIZED ===")
-        logger.info(f"Available operator mappings: {list(operator_rfid_mapping.keys())}")
+       
+        
 
         # ===== DATE RANGE DETERMINATION =====
         # Determine which dates to process based on parameters
@@ -2015,8 +2034,7 @@ class OperatorReport(APIView):
                     operator_report[report_key] = {
                         "date": report_date,
                         "operator_id": operator_id,
-                        "operator_name": operator_rfid_mapping.get(str(operator_id), f"UNKNOWN-{operator_id}"),
-                        "is_current_date": is_current_date,
+                        "operator_name": get_operator_name(operator_id),                        "is_current_date": is_current_date,
                         "machines_worked": set(),  # Track machines this operator worked on
                         "lines_worked": set(),     # Track lines this operator worked on
                         # Mode-based hour tracking
@@ -2564,6 +2582,8 @@ class OperatorRawDataReport(APIView):
     Raw Operator Data Report - Returns unprocessed operator logs
     """
     
+    
+   
     def get(self, request, *args, **kwargs):
         operator_id_filter = request.query_params.get('operator_id')
         date_str = request.query_params.get('date')
@@ -2614,8 +2634,9 @@ class OperatorRawDataReport(APIView):
                 "Mode Description": MODES.get(log.MODE, f"Unknown Mode {log.MODE}"),
                 "Stitch Count": getattr(log, 'STITCH_COUNT', 0),
                 "Needle Runtime": getattr(log, 'NEEDLE_RUNTIME', 0),
-                "Needle Stop Time": getattr(log, 'NEEDLE_STOP_TIME', ''),
-                "Duration": "",  # Calculate if needed
+                "Needle Stop Time": getattr(log, 'NEEDLE_STOPTIME', ''),
+                "Duration": getattr (log, 'DEVICE_ID', ''),
+                # Calculate if needed
                 "SPM": getattr(log, 'RESERVE', 0),
                 "Calculation Value": getattr(log, 'RESERVE', 0),
                 "TX Log ID": getattr(log, 'Tx_LOGID', ''),
@@ -2629,4 +2650,3 @@ class OperatorRawDataReport(APIView):
             "raw_data": raw_data,
             "total_records": len(raw_data)
         })
-
