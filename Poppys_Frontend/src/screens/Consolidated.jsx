@@ -289,6 +289,8 @@ export default function Consolidated() {
   // ✅ fetchData function
 // ✅ UPDATE: fetchData function to use the same simple logic as Operator.jsx
 
+
+// ✅ ENHANCED: Better operator data enrichment for "all" filter
 const fetchData = async () => {
   setLoading(true);
   try {
@@ -309,7 +311,7 @@ const fetchData = async () => {
       response = await axios.get("http://localhost:8000/api/operator-report/", { params });
       const backendRows = response.data.summary || [];
       
-      // ✅ FIXED: Proper operator data mapping with correct needle runtime field
+      // ✅ Operator data mapping (unchanged)
       const mappedRows = backendRows.map((row, idx) => {
         const operatorId = row["Operator ID"] || row["operator_id"] || row["OPERATOR_ID"];
         const operatorName = row["Operator Name"] || row["operator_name"] || row["OPERATOR_NAME"];
@@ -327,7 +329,6 @@ const fetchData = async () => {
           meeting: row["Meeting Hours"] || "00:00",
           maintenance: row["Maintenance Hours"] || "00:00",
           needleBreak: row["Needle Break"] || "00:00",
-          // Add decimal versions for pie chart calculations
           totalHoursDecimal: convertTimeToHours(row["Total Hours"]) || 0,
           sewingDecimal: convertTimeToHours(row["Sewing Hours"]) || 0,
           idleDecimal: convertTimeToHours(row["Idle Hours"]) || 0,
@@ -338,7 +339,6 @@ const fetchData = async () => {
           needleBreakDecimal: convertTimeToHours(row["Needle Break"]) || 0,
           pt: row["PT %"] || 0,
           npt: row["NPT %"] || 0,
-          // ✅ FIXED: Use the correct field name for needle runtime
           needleRuntime: row["Needle Time %"] || row["Needle Runtime %"] || row["needle_time_%"] || row["needle_runtime_%"] || 0,
           sewingSpeed: row["SPM"] || 0,
           stitchCount: row["Stitch Count"] || 0,
@@ -351,7 +351,7 @@ const fetchData = async () => {
       response = await axios.get("http://localhost:8000/api/line-report/", { params });
       const backendRows = response.data.summary || [];
       
-      // ✅ Use Line.jsx mapping logic
+      // ✅ Line data mapping (unchanged)
       const mappedRows = backendRows.map((row, idx) => {
         const lineNumber = row["Line Number"] || row["line_number"] || row["LINE_NUMBER"];
         
@@ -377,7 +377,6 @@ const fetchData = async () => {
           needleBreakDecimal: convertTimeToHours(row["Needle Break"]) || 0,
           pt: row["PT %"] || 0,
           npt: row["NPT %"] || 0,
-          // ✅ FIXED: Use the correct field name for needle runtime
           needleRuntime: row["Needle Time %"] || row["Needle Runtime %"] || row["needle_time_%"] || row["needle_runtime_%"] || 0,
           sewingSpeed: row["SPM"] || 0,
           stitchCount: row["Stitch Count"] || 0,
@@ -387,41 +386,214 @@ const fetchData = async () => {
       setData(mappedRows);
       
     } else {
-      // ✅ Default machine logic
+      // ✅ ENHANCED: Much more robust "all" filter with comprehensive operator data enrichment
+      console.log("Fetching consolidated data for 'all' filter with enhanced operator mapping...");
+      
+      // 1. Fetch machine data (primary source)
       response = await axios.get("http://localhost:8000/api/poppys-machine-logs/", { params });
-      const backendRows = response.data.summary || [];
+      const machineRows = response.data.summary || [];
+
+      // 2. ✅ ENHANCED: Fetch ALL operator data (both summary and raw) for comprehensive mapping
+      let operatorRows = [];
+      let operatorRawRows = [];
       
-      const mappedRows = backendRows.map((row, idx) => ({
-        sNo: idx + 1,
-        date: row["Date"] || "",
-        machineId: row["Machine ID"] || "",
-        lineNumber: "",
-        operatorId: "",
-        operatorName: "",
-        totalHours: row["Total Hours"] || "00:00",
-        sewing: row["Sewing Hours"] || "00:00",
-        idle: row["Idle Hours"] || "00:00",
-        rework: row["Rework Hours"] || "00:00",
-        noFeeding: row["No feeding Hours"] || "00:00",
-        meeting: row["Meeting Hours"] || "00:00",
-        maintenance: row["Maintenance Hours"] || "00:00",
-        needleBreak: row["Needle Break"] || "00:00",
-        totalHoursDecimal: convertTimeToHours(row["Total Hours"]) || 0,
-        sewingDecimal: convertTimeToHours(row["Sewing Hours"]) || 0,
-        idleDecimal: convertTimeToHours(row["Idle Hours"]) || 0,
-        reworkDecimal: convertTimeToHours(row["Rework Hours"]) || 0,
-        noFeedingDecimal: convertTimeToHours(row["No feeding Hours"]) || 0,
-        meetingDecimal: convertTimeToHours(row["Meeting Hours"]) || 0,
-        maintenanceDecimal: convertTimeToHours(row["Maintenance Hours"]) || 0,
-        needleBreakDecimal: convertTimeToHours(row["Needle Break"]) || 0,
-        pt: row["PT %"] || 0,
-        npt: row["NPT %"] || 0,
-        // ✅ FIXED: Use the correct field name for needle runtime
-        needleRuntime: row["Needle Time %"] || row["Needle Runtime %"] || row["needle_time_%"] || row["needle_runtime_%"] || 0,
-        sewingSpeed: row["SPM"] || 0,
-        stitchCount: row["Stitch Count"] || 0,
-      }));
+      try {
+        console.log("Fetching operator summary data...");
+        const operatorRes = await axios.get("http://localhost:8000/api/operator-report/", { params: {} }); // No params = get all
+        operatorRows = operatorRes.data.summary || [];
+        
+        console.log("Fetching operator raw data...");
+        const operatorRawRes = await axios.get("http://localhost:8000/api/operator-report/raw/", { params: {} }); // No params = get all
+        operatorRawRows = operatorRawRes.data.raw_data || [];
+        
+        console.log(`✅ Fetched ${operatorRows.length} operator summary records and ${operatorRawRows.length} operator raw records`);
+      } catch (err) {
+        console.warn("Could not fetch operator data for enrichment:", err);
+      }
+
+      // 3. ✅ ENHANCED: Fetch line data
+      let lineRows = [];
+      try {
+        const lineRes = await axios.get("http://localhost:8000/api/line-report/", { params: {} }); // No params = get all
+        lineRows = lineRes.data.summary || [];
+        console.log(`✅ Fetched ${lineRows.length} line records`);
+      } catch (err) {
+        console.warn("Could not fetch line data for enrichment:", err);
+      }
+
+      // 4. ✅ ENHANCED: Fetch machine raw data
+      let machineRawRows = [];
+      try {
+        const rawRes = await axios.get("http://localhost:8000/api/poppys-machine-logs/raw/", { params: {} }); // No params = get all
+        machineRawRows = rawRes.data.raw_data || [];
+        console.log(`✅ Fetched ${machineRawRows.length} machine raw records`);
+      } catch (e) {
+        console.warn("Could not fetch machine raw data for enrichment:", e);
+      }
+
+      // 5. ✅ ENHANCED: Create comprehensive lookup maps for operators
+      const operatorIdToNameMap = new Map(); // Maps operator ID to operator name
+      const operatorNameToIdMap = new Map(); // Maps operator name to operator ID
       
+      // Build from operator summary data
+      operatorRows.forEach(row => {
+        const opId = row["Operator ID"] || row["operator_id"] || row["OPERATOR_ID"];
+        const opName = row["Operator Name"] || row["operator_name"] || row["OPERATOR_NAME"];
+        
+        if (opId && opName) {
+          operatorIdToNameMap.set(opId.toString().trim(), opName.toString().trim());
+          operatorNameToIdMap.set(opName.toString().trim().toLowerCase(), opId.toString().trim());
+        }
+      });
+      
+      // Build from operator raw data (additional source)
+      operatorRawRows.forEach(row => {
+        const opId = row["Operator ID"] || row["operator_id"] || row["OPERATOR_ID"];
+        const opName = row["Operator Name"] || row["operator_name"] || row["OPERATOR_NAME"];
+        
+        if (opId && opName) {
+          operatorIdToNameMap.set(opId.toString().trim(), opName.toString().trim());
+          operatorNameToIdMap.set(opName.toString().trim().toLowerCase(), opId.toString().trim());
+        }
+      });
+      
+      // Build from machine raw data (additional source)
+      machineRawRows.forEach(row => {
+        const opId = row["Operator ID"] || row["operator_id"] || row["OPERATOR_ID"];
+        const opName = row["Operator Name"] || row["operator_name"] || row["OPERATOR_NAME"];
+        
+        if (opId && opName) {
+          operatorIdToNameMap.set(opId.toString().trim(), opName.toString().trim());
+          operatorNameToIdMap.set(opName.toString().trim().toLowerCase(), opId.toString().trim());
+        }
+      });
+
+      console.log("✅ Created operator lookup maps:", {
+        operatorIdToNameMap: Object.fromEntries(operatorIdToNameMap),
+        operatorNameToIdMap: Object.fromEntries(operatorNameToIdMap)
+      });
+
+      // 6. ✅ Create line lookup map
+      const lineMap = new Map();
+      lineRows.forEach(row => {
+        const lineId = row["Line Number"] || row["line_number"];
+        if (lineId) {
+          lineMap.set(lineId.toString(), lineId);
+        }
+      });
+
+      // 7. ✅ Create machine raw data lookup map (by composite key)
+      const machineRawMap = new Map();
+      machineRawRows.forEach(item => {
+        const key = [
+          item["Date"] || item.date || "",
+          item["Machine ID"] || item.machineId || "",
+          item["Operator ID"] || item.operatorId || ""
+        ].join("_");
+        machineRawMap.set(key, item);
+      });
+
+      // 8. ✅ ENHANCED: Comprehensive mapping with multiple fallback strategies
+      const mappedRows = machineRows.map((row, idx) => {
+        const date = row["Date"] || "";
+        const machineId = row["Machine ID"] || row["machine_id"] || row["MACHINE_ID"] || "";
+        
+        // ✅ STRATEGY 1: Try to get operator data directly from machine row
+        let operatorId = row["Operator ID"] || row["operator_id"] || row["OPERATOR_ID"] || "";
+        let operatorName = row["Operator Name"] || row["operator_name"] || row["OPERATOR_NAME"] || "";
+        let lineNumber = row["Line Number"] || row["line_number"] || row["LINE_NUMBER"] || "";
+        
+        // ✅ STRATEGY 2: Try to get from machine raw data
+        if ((!operatorId || !operatorName) && machineId && date) {
+          const rawKey = [date, machineId, operatorId || ""].join("_");
+          const rawData = machineRawMap.get(rawKey);
+          
+          if (rawData) {
+            operatorId = operatorId || rawData["Operator ID"] || rawData.operatorId || "";
+            operatorName = operatorName || rawData["Operator Name"] || rawData.operatorName || "";
+            lineNumber = lineNumber || rawData["Line Number"] || rawData.lineNumber || "";
+          }
+        }
+        
+        // ✅ STRATEGY 3: Use operator lookup maps
+        if (operatorId && !operatorName) {
+          operatorName = operatorIdToNameMap.get(operatorId.toString().trim()) || "";
+        }
+        
+        if (operatorName && !operatorId) {
+          operatorId = operatorNameToIdMap.get(operatorName.toString().trim().toLowerCase()) || "";
+        }
+        
+        // ✅ STRATEGY 4: Try to find matching operator from operator raw data by machine/date
+        if ((!operatorId || !operatorName) && machineId && date) {
+          const matchingOperatorRecord = operatorRawRows.find(opRow => {
+            const opMachineId = opRow["Machine ID"] || opRow["machine_id"];
+            const opDate = opRow["Date"] || opRow["date"];
+            return opMachineId === machineId && opDate === date;
+          });
+          
+          if (matchingOperatorRecord) {
+            operatorId = operatorId || matchingOperatorRecord["Operator ID"] || matchingOperatorRecord["operator_id"] || "";
+            operatorName = operatorName || matchingOperatorRecord["Operator Name"] || matchingOperatorRecord["operator_name"] || "";
+          }
+        }
+        
+        // ✅ STRATEGY 5: Enhanced line number resolution
+        if (!lineNumber) {
+          // Try to find line number from line data or use first available
+          for (const [lineId] of lineMap) {
+            lineNumber = lineId;
+            break; // Take the first available line for now
+          }
+        }
+
+        // ✅ FINAL: Set defaults for any remaining empty fields
+        const finalOperatorId = operatorId || "N/A";
+        const finalOperatorName = operatorName || (operatorId ? `Operator-${operatorId}` : "Unknown");
+        const finalLineNumber = lineNumber || "N/A";
+
+        console.log(`Row ${idx + 1} mapping:`, {
+          machineId,
+          originalOperatorId: row["Operator ID"],
+          finalOperatorId,
+          originalOperatorName: row["Operator Name"],
+          finalOperatorName,
+          originalLineNumber: row["Line Number"],
+          finalLineNumber
+        });
+
+        return {
+          sNo: row["S.no"] || row["S.No"] || (idx + 1),
+          date,
+          machineId: machineId || "N/A",
+          lineNumber: finalLineNumber,
+          operatorId: finalOperatorId,
+          operatorName: finalOperatorName,
+          totalHours: row["Total Hours"] || "00:00",
+          sewing: row["Sewing Hours"] || "00:00",
+          idle: row["Idle Hours"] || "00:00",
+          rework: row["Rework Hours"] || "00:00",
+          noFeeding: row["No feeding Hours"] || "00:00",
+          meeting: row["Meeting Hours"] || "00:00",
+          maintenance: row["Maintenance Hours"] || "00:00",
+          needleBreak: row["Needle Break"] || "00:00",
+          totalHoursDecimal: convertTimeToHours(row["Total Hours"]) || 0,
+          sewingDecimal: convertTimeToHours(row["Sewing Hours"]) || 0,
+          idleDecimal: convertTimeToHours(row["Idle Hours"]) || 0,
+          reworkDecimal: convertTimeToHours(row["Rework Hours"]) || 0,
+          noFeedingDecimal: convertTimeToHours(row["No feeding Hours"]) || 0,
+          meetingDecimal: convertTimeToHours(row["Meeting Hours"]) || 0,
+          maintenanceDecimal: convertTimeToHours(row["Maintenance Hours"]) || 0,
+          needleBreakDecimal: convertTimeToHours(row["Needle Break"]) || 0,
+          pt: row["PT %"] || 0,
+          npt: row["NPT %"] || 0,
+          needleRuntime: row["Needle Runtime %"] || row["Needle Time %"] || 0,
+          sewingSpeed: row["SPM"] || 0,
+          stitchCount: row["Stitch Count"] || 0
+        };
+      });
+
+      console.log("✅ Enhanced mapping completed for 'all' filter with comprehensive operator data:", mappedRows);
       setData(mappedRows);
     }
     
@@ -433,6 +605,7 @@ const fetchData = async () => {
   }
   setLoading(false);
 };
+
 
   // ✅ Apply client-side filtering
   const applyFilters = (dataToFilter) => {
