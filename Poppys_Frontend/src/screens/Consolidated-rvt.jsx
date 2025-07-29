@@ -158,67 +158,6 @@ export default function Consolidated() {
   const [rawData, setRawData] = useState([]);
   const [dataGenerated, setDataGenerated] = useState(false); // ✅ Track if Generate was clicked
 
-// ✅ Add function to fetch operator mapping dynamically
-const fetchOperatorMapping = async () => {
-  try {
-    // Fetch all operators from backend
-    const response = await axios.get("http://localhost:8000/api/operators/");
-    const operators = response.data || [];
-    
-    // Create dynamic mapping from RFID to operator name
-    const mapping = {};
-    operators.forEach(operator => {
-      if (operator.rfid_card_no && operator.operator_name) {
-        mapping[operator.rfid_card_no] = operator.operator_name;
-      }
-    });
-    
-    setOperatorMapping(mapping);
-    console.log("Dynamic operator mapping loaded:", mapping);
-  } catch (err) {
-    console.error("Error fetching operator mapping:", err);
-    setOperatorMapping({});
-  }
-};
-
-// ✅ Update useEffect to fetch operator mapping on component mount
-useEffect(() => {
-  const fetchOptions = async () => {
-    try {
-      // Fetch operator mapping first
-      await fetchOperatorMapping();
-      
-      // Fetch Machine options
-      const machineRes = await axios.get("http://localhost:8000/api/poppys-machine-logs/");
-      const machines = (machineRes.data.summary || [])
-        .map(row => row["Machine ID"])
-        .filter(Boolean);
-      setMachineOptions([...new Set(machines)]);
-
-      // Fetch Operator options  
-      const operatorRes = await axios.get("http://localhost:8000/api/operator-report/");
-      const operators = (operatorRes.data.summary || [])
-        .map(row => row["Operator ID"])
-        .filter(Boolean);
-      setOperatorIdOptions([...new Set(operators)]);
-
-      // Fetch Line options
-      const lineRes = await axios.get("http://localhost:8000/api/line-report/");
-      const lines = (lineRes.data.summary || [])
-        .map(row => row["Line Number"])
-        .filter(Boolean);
-      setLineOptions([...new Set(lines)]);
-
-    } catch (err) {
-      console.error("Error fetching options:", err);
-      setMachineOptions([]);
-      setOperatorIdOptions([]);
-      setLineOptions([]);
-    }
-  };
-
-  fetchOptions();
-}, []);
 
 
   // Filter options
@@ -360,6 +299,7 @@ useEffect(() => {
       if (lineIds.length > 0) params.line_ids = lineIds.join(',');
 
       console.log("Fetching consolidated data with params:", params);
+      
 
       const [machineRes, operatorRes, lineRes] = await Promise.all([
         axios.get("http://localhost:8000/api/poppys-machine-logs/", { params }),
@@ -453,60 +393,7 @@ useEffect(() => {
     setLoading(false);
   };
 
-  // ✅ fetchRawData function
-  const fetchRawData = async () => {
-    setLoading(true);
-    try {
-      const params = {};
-      
-      if (from) params.from = from;
-      if (to) params.to = to;
-      if (machineIds.length > 0) params.machine_ids = machineIds.join(',');
-      if (selectedOperatorIds.length > 0) params.operator_ids = selectedOperatorIds.join(',');
-      if (lineIds.length > 0) params.line_ids = lineIds.join(',');
 
-      const res = await axios.get("http://localhost:8000/api/poppys-machine-logs/raw/", { params });
-      const backendRawRows = res.data.raw_data || [];
-
-
-      const modeDescriptions = {
-        1: "Sewing", 2: "Idle", 3: "No Feeding", 4: "Meeting", 
-        5: "Maintenance", 6: "Rework", 7: "Needle Break"
-      };
-
-      const mappedRawRows = backendRawRows.map((row, idx) => ({
-        
-        sNo: idx + 1,
-        machineId: row["Machine ID"] || row["machine_id"] || "",
-        lineNumber: row["Line Number"] || row["line_number"] || "",
-        operatorId: row["Operator ID"] || row["operator_id"] || "",
-        operatorName: row["Operator Name"] || row["operator_name"] || 
-                          operatorMapping[operatorId] || 
-                          `UNKNOWN-${operatorId}`,
-        date: row["Date"] || row["date"] || "",
-        startTime: row["Start Time"] || row["start_time"] || "",
-        endTime: row["End Time"] || row["end_time"] || "",
-        mode: row["Mode"] || row["mode"] || "",
-        modeDescription: modeDescriptions[row["Mode"]] || modeDescriptions[row["mode"]] || "",
-        stitchCount: row["Stitch Count"] || row["stitch_count"] || "-",
-        needleRuntime: row["Needle Runtime"] || row["needle_runtime"] || "-",
-        needleStopTime: row["Needle Stop Time"] || row["needle_stop_time"] || "-",
-        duration: row["Duration"] || row["duration"] || "",
-        spm: row["SPM"] || row["spm"] || "0",
-        calculationValue: row["Calculation Value"] || row["calculation_value"] || "0",
-        txLogId: row["TX Log ID"] || row["tx_log_id"] || "",
-        strLogId: row["STR Log ID"] || row["str_log_id"] || "",
-        createdAt: row["Created At"] || row["created_at"] || ""
-      }));
-
-      const filteredRawRows = applyFiltersToRawData(mappedRawRows);
-      setRawData(filteredRawRows);
-    } catch (err) {
-      console.error("Raw data fetch error:", err);
-      setRawData([]);
-    }
-    setLoading(false);
-  };
 
   // ✅ Apply client-side filtering
   const applyFilters = (dataToFilter) => {
@@ -637,11 +524,153 @@ const calculateAverageSewingSpeed = () => {
 }
 
 
+
+
+// ✅ Add helper function for mode descriptions if not already present
+const getModeDescription = (mode) => {
+  const modeDescriptions = {
+    1: "Sewing",
+    2: "Idle", 
+    3: "No Feeding",
+    4: "Meeting",
+    5: "Maintenance", 
+    6: "Rework",
+    7: "Needle Break"
+  };
+  return modeDescriptions[mode] || `Unknown Mode ${mode}`;
+};
+
+// ✅ FIXED: Updated fetchRawData function to ensure operator mapping is available
+const fetchRawData = async () => {
+  setLoading(true);
+  try {
+    // ✅ Ensure operator mapping is loaded before processing raw data
+    if (Object.keys(operatorMapping).length === 0) {
+      console.log("Operator mapping empty, fetching...");
+      await fetchOperatorMapping();
+    }
+
+    const params = {};
+    
+    if (from) params.from = from;
+    if (to) params.to = to;
+    if (machineIds.length > 0) params.machine_ids = machineIds.join(',');
+    if (selectedOperatorIds.length > 0) params.operator_ids = selectedOperatorIds.join(',');
+    if (lineIds.length > 0) params.line_ids = lineIds.join(',');
+
+    console.log("Fetching consolidated raw data with params:", params);
+    console.log("Current operator mapping:", operatorMapping);
+
+    // Fetch raw data from all three endpoints
+    const [machineRawRes, operatorRawRes, lineRawRes] = await Promise.all([
+      axios.get("http://localhost:8000/api/poppys-machine-logs/raw/", { params }),
+      axios.get("http://localhost:8000/api/operator-report/raw/", { params }),
+      axios.get("http://localhost:8000/api/line-report/raw/", { params })
+    ]);
+
+    // Combine all raw data
+    const allRawData = [
+      ...(machineRawRes.data.raw_data || []),
+      ...(operatorRawRes.data.raw_data || []),
+      ...(lineRawRes.data.raw_data || [])
+    ];
+
+    // Remove duplicates based on unique combination of fields
+    const uniqueRawData = [];
+    const seen = new Set();
+
+    allRawData.forEach(row => {
+      const key = `${row["Machine ID"]}-${row["Date"]}-${row["Start Time"]}-${row["End Time"]}-${row["Mode"]}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueRawData.push(row);
+      }
+    });
+
+    // ✅ Get fresh operator mapping if needed
+    const currentMapping = Object.keys(operatorMapping).length > 0 ? operatorMapping : await fetchOperatorMapping();
+
+    // Map and apply operator name resolution
+    const mappedRawRows = uniqueRawData.map((row, idx) => {
+      const operatorId = row["Operator ID"] || row["operator_id"] || "";
+      
+      // ✅ FIXED: Use the current mapping (either existing or freshly fetched)
+      let operatorName = row["Operator Name"] || row["operator_name"] || "";
+      
+      if (!operatorName && operatorId) {
+        // Use dynamic mapping first, fallback to formatted name
+        operatorName = currentMapping[operatorId] || `UNKNOWN-${operatorId}`;
+        console.log(`Mapping operator ID ${operatorId} to name: ${operatorName}`);
+      } else if (!operatorName && !operatorId) {
+        operatorName = "Unknown";
+      }
+
+      return {
+        sNo: idx + 1,
+        machineId: row["Machine ID"] || row["machine_id"] || "",
+        lineNumber: row["Line Number"] || row["line_number"] || "",
+        operatorId: operatorId,
+        operatorName: operatorName, // ✅ Now properly mapped
+        date: row["Date"] || row["date"] || "",
+        startTime: row["Start Time"] || row["start_time"] || "",
+        endTime: row["End Time"] || row["end_time"] || "",
+        mode: row["Mode"] || row["mode"] || "",
+        modeDescription: row["Mode Description"] || row["mode_description"] || getModeDescription(row["Mode"] || row["mode"]),
+        stitchCount: row["Stitch Count"] || row["stitch_count"] || 0,
+        needleRuntime: row["Needle Runtime"] || row["needle_runtime"] || 0,
+        needleStopTime: row["Needle Stop Time"] || row["needle_stop_time"] || "",
+        duration: row["Duration"] || row["duration"] || "",
+        spm: row["SPM"] || row["spm"] || 0,
+        calculationValue: row["Calculation Value"] || row["calculation_value"] || 0,
+        txLogId: row["TX Log ID"] || row["tx_log_id"] || "",
+        strLogId: row["STR Log ID"] || row["str_log_id"] || "",
+        createdAt: row["Created At"] || row["created_at"] || ""
+      };
+    });
+
+    console.log("✅ Mapped raw data with operator names:", mappedRawRows);
+    setRawData(mappedRawRows);
+
+  } catch (err) {
+    console.error("Consolidated raw data fetch error:", err);
+    setRawData([]);
+  }
+  setLoading(false);
+};
+
+// ✅ ALSO FIX: Update fetchOperatorMapping to return the mapping
+const fetchOperatorMapping = async () => {
+  try {
+    // Fetch all operators from backend
+    const response = await axios.get("http://localhost:8000/api/operators/");
+    const operators = response.data || [];
+    
+    // Create dynamic mapping from RFID to operator name
+    const mapping = {};
+    operators.forEach(operator => {
+      if (operator.rfid_card_no && operator.operator_name) {
+        mapping[operator.rfid_card_no] = operator.operator_name;
+      }
+    });
+    
+    setOperatorMapping(mapping);
+    console.log("Dynamic operator mapping loaded:", mapping);
+    return mapping; // ✅ Return the mapping for immediate use
+  } catch (err) {
+    console.error("Error fetching operator mapping:", err);
+    setOperatorMapping({});
+    return {}; // ✅ Return empty object on error
+  }
+};
+
+
+
 const tileData = [
   { label: "Productive Time %", value: calculateProductiveTimePercentage().toFixed(1) + "%", bg: "tile-bg-blue", color: "tile-color-blue" },
   { label: "Needle Time", value: calculateNeedleTimePercentage().toFixed(1) + "%", bg: "tile-bg-green", color: "tile-color-green" },
   { label: "Sewing Speed", value: calculateAverageSewingSpeed().toFixed(0), bg: "tile-bg-orange", color: "tile-color-orange" },
-  { label: "Total Hours", value: totalHours.toFixed(2), bg: "tile-bg-pink", color: "tile-color-pink" },
+  { label: "Total Hours", value: formatHoursToTime(totalHours), bg: "tile-bg-pink", color: "tile-color-pink" },
+  
 ];
 
 
@@ -1063,15 +1092,21 @@ const tileData = [
     URL.revokeObjectURL(url);
   };
 
-  const handleRawData = () => {
+  const handleRawData = async () => {
     if (showRawData) {
       setShowRawData(false);
     } else {
       if (!dataGenerated) {
-        handleGenerate();
+        await handleGenerate();
       }
       setShowRawData(true);
-      fetchRawData();
+      
+      // ✅ Ensure operator mapping is loaded before fetching raw data
+      if (Object.keys(operatorMapping).length === 0) {
+        await fetchOperatorMapping();
+      }
+      
+      await fetchRawData();
     }
   };
 

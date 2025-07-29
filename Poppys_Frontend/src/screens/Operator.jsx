@@ -414,41 +414,93 @@ export default function Operator({ tableOnly = false, from: propFrom = "", to: p
   const meetingSum = sumByKey("meetingDecimal");
   const maintenanceSum = sumByKey("maintenanceDecimal");
   const needleBreakSum = sumByKey("needleBreakDecimal");
-
-  // ✅ Recalculate tile data based on filtered results
-  const pieRow = filtered[0] || {};
-  const tile1ProductivityData = pieRow.tile1_productive_time || {};
-  const tile2NeedleTimeData = pieRow.tile2_needle_time || {};
-  const tile3SewingSpeedData = pieRow.tile3_sewing_speed || {};
-  const tile4TotalHoursData = pieRow.tile4_total_hours || {};
-
-  // ✅ Update tile data to reflect filtered results
-  const tiles = [
-    {
-      label: "Productive Time %",
-      value: tile1ProductivityData.percentage + "%" || "0%",
-      bg: "tile-bg-blue",
-      color: "tile-color-blue",
-    },
-    {
-      label: "Needle Time %",
-      value: (tile2NeedleTimeData.percentage || 0) + "%",
-      bg: "tile-bg-green",
-      color: "tile-color-green",
-    },
-    { 
-      label: "Sewing Speed", 
-      value: tile3SewingSpeedData.average_spm || 0,
-      bg: "tile-bg-orange", 
-      color: "tile-color-orange" 
-    },
-    {
-      label: "Total Hours",
-      value: tile4TotalHoursData.total_hours || "00:00",
-      bg: "tile-bg-pink",
-      color: "tile-color-pink",
-    },
-  ];
+  
+  // ✅ Calculate tile data based on filtered results, not from backend
+  const getTileDataFromFiltered = () => {
+    if (filtered.length === 0) {
+      return [
+        {
+          label: "Productive Time %",
+          value: "0%",
+          bg: "tile-bg-blue",
+          color: "tile-color-blue",
+        },
+        {
+          label: "Needle Time %", 
+          value: "0%",
+          bg: "tile-bg-green",
+          color: "tile-color-green",
+        },
+        { 
+          label: "Sewing Speed", 
+          value: "0",
+          bg: "tile-bg-orange", 
+          color: "tile-color-orange" 
+        },
+        {
+          label: "Total Hours",
+          value: "00:00",
+          bg: "tile-bg-pink",
+          color: "tile-color-pink",
+        },
+      ];
+    }
+  
+    // ✅ Calculate averages and totals from filtered data
+    const avgPT = filtered.reduce((sum, row) => sum + (parseFloat(row.pt) || 0), 0) / filtered.length;
+    const avgNeedleRuntime = filtered.reduce((sum, row) => sum + (parseFloat(row.needleRuntime) || 0), 0) / filtered.length;
+    const avgSewingSpeed = filtered.reduce((sum, row) => sum + (parseFloat(row.sewingSpeed) || 0), 0) / filtered.length;
+    
+    // ✅ Calculate total hours from filtered results
+    const totalHoursDisplay = formatHoursMins(totalHoursSum);
+  
+    return [
+      {
+        label: "Productive Time %",
+        value: `${avgPT.toFixed(2)}%`,
+        bg: "tile-bg-blue",
+        color: "tile-color-blue",
+      },
+      {
+        label: "Needle Time %",
+        value: `${avgNeedleRuntime.toFixed(2)}%`,
+        bg: "tile-bg-green",
+        color: "tile-color-green",
+      },
+      { 
+        label: "Sewing Speed", 
+        value: Math.round(avgSewingSpeed).toString(),
+        bg: "tile-bg-orange", 
+        color: "tile-color-orange" 
+      },
+      {
+        label: "Total Hours",
+        value: totalHoursDisplay,
+        bg: "tile-bg-pink",
+        color: "tile-color-pink",
+      },
+    ];
+  };
+  
+  // ✅ Remove these old lines:
+  // const pieRow = filtered[0] || {};
+  // const tile1ProductivityData = pieRow.tile1_productive_time || {};
+  // const tile2NeedleTimeData = pieRow.tile2_needle_time || {};
+  // const tile3SewingSpeedData = pieRow.tile3_sewing_speed || {};
+  // const tile4TotalHoursData = pieRow.tile4_total_hours || {};
+  
+  // const tiles = [
+  //   {
+  //     label: "Productive Time %",
+  //     value: tile1ProductivityData.percentage + "%" || "0%",
+  //     bg: "tile-bg-blue",
+  //     color: "tile-color-blue",
+  //   },
+  //   ... rest of old tile data
+  // ];
+  
+  // ✅ Use the new tile data calculation
+  const tiles = getTileDataFromFiltered();
 
   // ✅ Pagination calculations
   const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));

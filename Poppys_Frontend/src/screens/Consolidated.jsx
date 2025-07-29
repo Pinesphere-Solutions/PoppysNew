@@ -287,113 +287,152 @@ export default function Consolidated() {
   }, []);
 
   // ✅ fetchData function
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const params = {};
+// ✅ UPDATE: fetchData function to use the same simple logic as Operator.jsx
+
+const fetchData = async () => {
+  setLoading(true);
+  try {
+    const params = {};
+    
+    if (from) params.from = from;
+    if (to) params.to = to;
+    if (machineIds.length > 0) params.machine_ids = machineIds.join(',');
+    if (selectedOperatorIds.length > 0) params.operator_ids = selectedOperatorIds.join(',');
+    if (lineIds.length > 0) params.line_ids = lineIds.join(',');
+
+    console.log("Fetching consolidated data with params:", params);
+    
+    let response;
+    
+    // ✅ Use appropriate endpoint based on selected filter
+    if (selectedFilter === 'operator' || pendingFilter === 'operator') {
+      response = await axios.get("http://localhost:8000/api/operator-report/", { params });
+      const backendRows = response.data.summary || [];
       
-      if (from) params.from = from;
-      if (to) params.to = to;
-      if (machineIds.length > 0) params.machine_ids = machineIds.join(',');
-      if (selectedOperatorIds.length > 0) params.operator_ids = selectedOperatorIds.join(',');
-      if (lineIds.length > 0) params.line_ids = lineIds.join(',');
-
-      console.log("Fetching consolidated data with params:", params);
+      // ✅ FIXED: Proper operator data mapping with correct needle runtime field
+      const mappedRows = backendRows.map((row, idx) => {
+        const operatorId = row["Operator ID"] || row["operator_id"] || row["OPERATOR_ID"];
+        const operatorName = row["Operator Name"] || row["operator_name"] || row["OPERATOR_NAME"];
+        
+        return {
+          sNo: row["S.no"] || row["S.No"] || (idx + 1),
+          date: row["Date"] || "",
+          operatorId: operatorId || "N/A",
+          operatorName: operatorName || "Unknown",
+          totalHours: row["Total Hours"] || "00:00",
+          sewing: row["Sewing Hours"] || "00:00",
+          idle: row["Idle Hours"] || "00:00",
+          rework: row["Rework Hours"] || "00:00",
+          noFeeding: row["No feeding Hours"] || "00:00",
+          meeting: row["Meeting Hours"] || "00:00",
+          maintenance: row["Maintenance Hours"] || "00:00",
+          needleBreak: row["Needle Break"] || "00:00",
+          // Add decimal versions for pie chart calculations
+          totalHoursDecimal: convertTimeToHours(row["Total Hours"]) || 0,
+          sewingDecimal: convertTimeToHours(row["Sewing Hours"]) || 0,
+          idleDecimal: convertTimeToHours(row["Idle Hours"]) || 0,
+          reworkDecimal: convertTimeToHours(row["Rework Hours"]) || 0,
+          noFeedingDecimal: convertTimeToHours(row["No feeding Hours"]) || 0,
+          meetingDecimal: convertTimeToHours(row["Meeting Hours"]) || 0,
+          maintenanceDecimal: convertTimeToHours(row["Maintenance Hours"]) || 0,
+          needleBreakDecimal: convertTimeToHours(row["Needle Break"]) || 0,
+          pt: row["PT %"] || 0,
+          npt: row["NPT %"] || 0,
+          // ✅ FIXED: Use the correct field name for needle runtime
+          needleRuntime: row["Needle Time %"] || row["Needle Runtime %"] || row["needle_time_%"] || row["needle_runtime_%"] || 0,
+          sewingSpeed: row["SPM"] || 0,
+          stitchCount: row["Stitch Count"] || 0,
+        };
+      });
       
-
-      const [machineRes, operatorRes, lineRes] = await Promise.all([
-        axios.get("http://localhost:8000/api/poppys-machine-logs/", { params }),
-        axios.get("http://localhost:8000/api/operator-report/", { params }),
-        axios.get("http://localhost:8000/api/line-report/", { params })
-      ]);
-
-      const machineData = machineRes.data.summary || [];
-      const operatorData = operatorRes.data.summary || [];
-      const lineData = lineRes.data.summary || [];
-
- 
-
-      // Create consolidated summary
-      const consolidatedMap = new Map();
-
-      machineData.forEach(row => {
-        const key = `${row["Date"]}-${row["Machine ID"]}`;
-        if (!consolidatedMap.has(key)) {
-          consolidatedMap.set(key, {
-            date: row["Date"] || "",
-            machineId: row["Machine ID"] || "",
-            lineNumber: "",
-            operatorId: "",
-            operatorName: "",
-            totalHours: row["Total Hours"] || "00:00",
-            sewing: row["Sewing Hours"] || "00:00",
-            idle: row["Idle Hours"] || "00:00",
-            rework: row["Rework Hours"] || "00:00",
-            noFeeding: row["No feeding Hours"] || "00:00",
-            meeting: row["Meeting Hours"] || "00:00",
-            maintenance: row["Maintenance Hours"] || "00:00",
-            needleBreak: row["Needle Break"] || "00:00",
-            pt: row["PT %"] || 0,
-            npt: row["NPT %"] || 0,
-            needleRuntime: row["Needle Time %"] || 0,
-            sewingSpeed: row["SPM"] || 0,
-            stitchCount: row["Stitch Count"] || 0,
-          });
-        }
-      });
-
-     // ✅ UPDATED: Enhance with operator data using dynamic mapping
-    operatorData.forEach(row => {
-      const operatorId = row["Operator ID"] || "";
-      // Priority: Backend response > Dynamic mapping > Unknown format
-      const operatorName = row["Operator Name"] || 
-                          operatorMapping[operatorId] || 
-                          `UNKNOWN-${operatorId}`;
-        
-        consolidatedMap.forEach((value, key) => {
-          if (key.includes(row["Date"])) {
-            value.operatorId = operatorId;
-            value.operatorName = operatorName;
-          }
-        });
-      });
-
-      // Enhance with line data
-      lineData.forEach(row => {
-        const lineNumber = row["Line Number"] || "";
-        
-        consolidatedMap.forEach((value, key) => {
-          if (key.includes(row["Date"])) {
-            value.lineNumber = lineNumber;
-          }
-        });
-      });
-
-      // Convert to array
-      const mappedRows = Array.from(consolidatedMap.values()).map((row, idx) => ({
-        sNo: idx + 1,
-        ...row,
-        totalHoursDecimal: convertTimeToHours(row.totalHours),
-        sewingDecimal: convertTimeToHours(row.sewing),
-        idleDecimal: convertTimeToHours(row.idle),
-        reworkDecimal: convertTimeToHours(row.rework),
-        noFeedingDecimal: convertTimeToHours(row.noFeeding),
-        meetingDecimal: convertTimeToHours(row.meeting),
-        maintenanceDecimal: convertTimeToHours(row.maintenance),
-        needleBreakDecimal: convertTimeToHours(row.needleBreak),
-      }));
-
       setData(mappedRows);
-      setDataGenerated(true);
-
-    } catch (err) {
-      console.error("Consolidated data fetch error:", err);
-      setData([]);
+      
+    } else if (selectedFilter === 'line' || pendingFilter === 'line') {
+      response = await axios.get("http://localhost:8000/api/line-report/", { params });
+      const backendRows = response.data.summary || [];
+      
+      // ✅ Use Line.jsx mapping logic
+      const mappedRows = backendRows.map((row, idx) => {
+        const lineNumber = row["Line Number"] || row["line_number"] || row["LINE_NUMBER"];
+        
+        return {
+          sNo: row["S.no"] || row["S.No"] || (idx + 1),
+          date: row["Date"] || "",
+          lineNumber: lineNumber || "N/A",
+          totalHours: row["Total Hours"] || "00:00",
+          sewing: row["Sewing Hours"] || "00:00",
+          idle: row["Idle Hours"] || "00:00",
+          rework: row["Rework Hours"] || "00:00",
+          noFeeding: row["No feeding Hours"] || "00:00",
+          meeting: row["Meeting Hours"] || "00:00",
+          maintenance: row["Maintenance Hours"] || "00:00",
+          needleBreak: row["Needle Break"] || "00:00",
+          totalHoursDecimal: convertTimeToHours(row["Total Hours"]) || 0,
+          sewingDecimal: convertTimeToHours(row["Sewing Hours"]) || 0,
+          idleDecimal: convertTimeToHours(row["Idle Hours"]) || 0,
+          reworkDecimal: convertTimeToHours(row["Rework Hours"]) || 0,
+          noFeedingDecimal: convertTimeToHours(row["No feeding Hours"]) || 0,
+          meetingDecimal: convertTimeToHours(row["Meeting Hours"]) || 0,
+          maintenanceDecimal: convertTimeToHours(row["Maintenance Hours"]) || 0,
+          needleBreakDecimal: convertTimeToHours(row["Needle Break"]) || 0,
+          pt: row["PT %"] || 0,
+          npt: row["NPT %"] || 0,
+          // ✅ FIXED: Use the correct field name for needle runtime
+          needleRuntime: row["Needle Time %"] || row["Needle Runtime %"] || row["needle_time_%"] || row["needle_runtime_%"] || 0,
+          sewingSpeed: row["SPM"] || 0,
+          stitchCount: row["Stitch Count"] || 0,
+        };
+      });
+      
+      setData(mappedRows);
+      
+    } else {
+      // ✅ Default machine logic
+      response = await axios.get("http://localhost:8000/api/poppys-machine-logs/", { params });
+      const backendRows = response.data.summary || [];
+      
+      const mappedRows = backendRows.map((row, idx) => ({
+        sNo: idx + 1,
+        date: row["Date"] || "",
+        machineId: row["Machine ID"] || "",
+        lineNumber: "",
+        operatorId: "",
+        operatorName: "",
+        totalHours: row["Total Hours"] || "00:00",
+        sewing: row["Sewing Hours"] || "00:00",
+        idle: row["Idle Hours"] || "00:00",
+        rework: row["Rework Hours"] || "00:00",
+        noFeeding: row["No feeding Hours"] || "00:00",
+        meeting: row["Meeting Hours"] || "00:00",
+        maintenance: row["Maintenance Hours"] || "00:00",
+        needleBreak: row["Needle Break"] || "00:00",
+        totalHoursDecimal: convertTimeToHours(row["Total Hours"]) || 0,
+        sewingDecimal: convertTimeToHours(row["Sewing Hours"]) || 0,
+        idleDecimal: convertTimeToHours(row["Idle Hours"]) || 0,
+        reworkDecimal: convertTimeToHours(row["Rework Hours"]) || 0,
+        noFeedingDecimal: convertTimeToHours(row["No feeding Hours"]) || 0,
+        meetingDecimal: convertTimeToHours(row["Meeting Hours"]) || 0,
+        maintenanceDecimal: convertTimeToHours(row["Maintenance Hours"]) || 0,
+        needleBreakDecimal: convertTimeToHours(row["Needle Break"]) || 0,
+        pt: row["PT %"] || 0,
+        npt: row["NPT %"] || 0,
+        // ✅ FIXED: Use the correct field name for needle runtime
+        needleRuntime: row["Needle Time %"] || row["Needle Runtime %"] || row["needle_time_%"] || row["needle_runtime_%"] || 0,
+        sewingSpeed: row["SPM"] || 0,
+        stitchCount: row["Stitch Count"] || 0,
+      }));
+      
+      setData(mappedRows);
     }
-    setLoading(false);
-  };
+    
+    setDataGenerated(true);
 
-
+  } catch (err) {
+    console.error("Consolidated data fetch error:", err);
+    setData([]);
+  }
+  setLoading(false);
+};
 
   // ✅ Apply client-side filtering
   const applyFilters = (dataToFilter) => {
@@ -511,8 +550,17 @@ export default function Consolidated() {
   return ((totalSewing + totalRework) / totalHours * 100);
 };
 
+// ✅ ALSO FIX: Update the tile calculation to use the same field mapping
 const calculateNeedleTimePercentage = () => {
   if (filtered.length === 0) return 0;
+  
+  // ✅ Debug: Log the needle runtime values
+  console.log("Needle runtime values:", filtered.map(row => ({
+    operatorId: row.operatorId,
+    needleRuntime: row.needleRuntime,
+    rawData: row
+  })));
+  
   const avgNeedleTime = filtered.reduce((sum, row) => sum + (parseFloat(row.needleRuntime) || 0), 0) / filtered.length;
   return avgNeedleTime;
 };
@@ -544,91 +592,54 @@ const getModeDescription = (mode) => {
 const fetchRawData = async () => {
   setLoading(true);
   try {
-    // ✅ Ensure operator mapping is loaded before processing raw data
-    if (Object.keys(operatorMapping).length === 0) {
-      console.log("Operator mapping empty, fetching...");
-      await fetchOperatorMapping();
-    }
-
     const params = {};
     
-    if (from) params.from = from;
-    if (to) params.to = to;
-    if (machineIds.length > 0) params.machine_ids = machineIds.join(',');
-    if (selectedOperatorIds.length > 0) params.operator_ids = selectedOperatorIds.join(',');
-    if (lineIds.length > 0) params.line_ids = lineIds.join(',');
+    // ✅ Use Operator.jsx logic - fetch ALL data first, filter on frontend
+    // Don't send any filters to backend, we'll apply them on frontend
+    console.log("Fetching consolidated raw data (no backend filters)...");
 
-    console.log("Fetching consolidated raw data with params:", params);
-    console.log("Current operator mapping:", operatorMapping);
+    let rawDataResponse;
+    
+    // ✅ FIXED: Use appropriate endpoint based on selected filter
+    if (selectedFilter === 'operator' || pendingFilter === 'operator') {
+      // ✅ Use operator raw data endpoint (exactly like Operator.jsx)
+      rawDataResponse = await axios.get("http://localhost:8000/api/operator-report/raw/", { params: {} });
+    } else if (selectedFilter === 'line' || pendingFilter === 'line') {
+      // ✅ Use line raw data endpoint
+      rawDataResponse = await axios.get("http://localhost:8000/api/line-report/raw/", { params: {} });
+    } else {
+      // ✅ Default to machine raw data endpoint
+      rawDataResponse = await axios.get("http://localhost:8000/api/poppys-machine-logs/raw/", { params: {} });
+    }
 
-    // Fetch raw data from all three endpoints
-    const [machineRawRes, operatorRawRes, lineRawRes] = await Promise.all([
-      axios.get("http://localhost:8000/api/poppys-machine-logs/raw/", { params }),
-      axios.get("http://localhost:8000/api/operator-report/raw/", { params }),
-      axios.get("http://localhost:8000/api/line-report/raw/", { params })
-    ]);
+    console.log("Raw data response:", rawDataResponse.data);
+    
+    const backendRawRows = rawDataResponse.data.raw_data || rawDataResponse.data || [];
 
-    // Combine all raw data
-    const allRawData = [
-      ...(machineRawRes.data.raw_data || []),
-      ...(operatorRawRes.data.raw_data || []),
-      ...(lineRawRes.data.raw_data || [])
-    ];
+    // ✅ EXACT MAPPING from Operator.jsx
+    const mappedRawRows = backendRawRows.map((row, idx) => ({
+      sNo: idx + 1,
+      operatorId: row["Operator ID"] || row["operator_id"] || "",
+      operatorName: row["Operator Name"] || row["operator_name"] || "",
+      machineId: row["Machine ID"] || row["machine_id"] || "",
+      lineNumber: row["Line Number"] || row["line_number"] || "",
+      date: row["Date"] || row["date"] || "",
+      startTime: row["Start Time"] || row["start_time"] || "",
+      endTime: row["End Time"] || row["end_time"] || "",
+      mode: row["Mode"] || row["mode"] || "",
+      modeDescription: row["Mode Description"] || row["mode_description"] || getModeDescription(row["Mode"] || row["mode"]),
+      stitchCount: row["Stitch Count"] || row["stitch_count"] || "-",
+      needleRuntime: row["Needle Runtime"] || row["needle_runtime"] || "-",
+      needleStopTime: row["Needle Stop Time"] || row["needle_stop_time"] || "-",
+      duration: row["Duration"] || row["duration"] || "",
+      spm: row["SPM"] || row["spm"] || "0",
+      calculationValue: row["Calculation Value"] || row["calculation_value"] || "0",
+      txLogId: row["TX Log ID"] || row["tx_log_id"] || "",
+      strLogId: row["STR Log ID"] || row["str_log_id"] || "",
+      createdAt: row["Created At"] || row["created_at"] || ""
+    }));
 
-    // Remove duplicates based on unique combination of fields
-    const uniqueRawData = [];
-    const seen = new Set();
-
-    allRawData.forEach(row => {
-      const key = `${row["Machine ID"]}-${row["Date"]}-${row["Start Time"]}-${row["End Time"]}-${row["Mode"]}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueRawData.push(row);
-      }
-    });
-
-    // ✅ Get fresh operator mapping if needed
-    const currentMapping = Object.keys(operatorMapping).length > 0 ? operatorMapping : await fetchOperatorMapping();
-
-    // Map and apply operator name resolution
-    const mappedRawRows = uniqueRawData.map((row, idx) => {
-      const operatorId = row["Operator ID"] || row["operator_id"] || "";
-      
-      // ✅ FIXED: Use the current mapping (either existing or freshly fetched)
-      let operatorName = row["Operator Name"] || row["operator_name"] || "";
-      
-      if (!operatorName && operatorId) {
-        // Use dynamic mapping first, fallback to formatted name
-        operatorName = currentMapping[operatorId] || `UNKNOWN-${operatorId}`;
-        console.log(`Mapping operator ID ${operatorId} to name: ${operatorName}`);
-      } else if (!operatorName && !operatorId) {
-        operatorName = "Unknown";
-      }
-
-      return {
-        sNo: idx + 1,
-        machineId: row["Machine ID"] || row["machine_id"] || "",
-        lineNumber: row["Line Number"] || row["line_number"] || "",
-        operatorId: operatorId,
-        operatorName: operatorName, // ✅ Now properly mapped
-        date: row["Date"] || row["date"] || "",
-        startTime: row["Start Time"] || row["start_time"] || "",
-        endTime: row["End Time"] || row["end_time"] || "",
-        mode: row["Mode"] || row["mode"] || "",
-        modeDescription: row["Mode Description"] || row["mode_description"] || getModeDescription(row["Mode"] || row["mode"]),
-        stitchCount: row["Stitch Count"] || row["stitch_count"] || 0,
-        needleRuntime: row["Needle Runtime"] || row["needle_runtime"] || 0,
-        needleStopTime: row["Needle Stop Time"] || row["needle_stop_time"] || "",
-        duration: row["Duration"] || row["duration"] || "",
-        spm: row["SPM"] || row["spm"] || 0,
-        calculationValue: row["Calculation Value"] || row["calculation_value"] || 0,
-        txLogId: row["TX Log ID"] || row["tx_log_id"] || "",
-        strLogId: row["STR Log ID"] || row["str_log_id"] || "",
-        createdAt: row["Created At"] || row["created_at"] || ""
-      };
-    });
-
-    console.log("✅ Mapped raw data with operator names:", mappedRawRows);
+    console.log("✅ Mapped raw data (Operator.jsx style):", mappedRawRows);
     setRawData(mappedRawRows);
 
   } catch (err) {
@@ -636,6 +647,67 @@ const fetchRawData = async () => {
     setRawData([]);
   }
   setLoading(false);
+};
+// ✅ EXACT FILTERING LOGIC from Operator.jsx
+const applyRawDataFilters = (dataToFilter) => {
+  let filtered = [...dataToFilter];
+
+  // ✅ Apply date filters (exact same logic as Operator.jsx)
+  if (from && to) {
+    filtered = filtered.filter(row => {
+      if (!row.date) return false;
+      
+      const rowDateStr = row.date.replace(/:/g, '-');
+      const rowDate = new Date(rowDateStr);
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+      
+      return rowDate >= fromDate && rowDate <= toDate;
+    });
+  } else if (from) {
+    filtered = filtered.filter(row => {
+      if (!row.date) return false;
+      
+      const rowDateStr = row.date.replace(/:/g, '-');
+      const rowDate = new Date(rowDateStr);
+      const fromDate = new Date(from);
+      
+      return rowDate >= fromDate;
+    });
+  } else if (to) {
+    filtered = filtered.filter(row => {
+      if (!row.date) return false;
+      
+      const rowDateStr = row.date.replace(/:/g, '-');
+      const rowDate = new Date(rowDateStr);
+      const toDate = new Date(to);
+      
+      return rowDate <= toDate;
+    });
+  }
+
+  // ✅ Apply operator filter (if operator filter is selected)
+  if ((selectedFilter === 'operator' || pendingFilter === 'operator') && selectedOperatorIds.length > 0) {
+    filtered = filtered.filter(row => 
+      row.operatorId && selectedOperatorIds.some(selectedId => selectedId.toString() === row.operatorId.toString())
+    );
+  }
+
+  // ✅ Apply machine filter (if machine filter is selected)
+  if ((selectedFilter === 'machine' || pendingFilter === 'machine') && machineIds.length > 0) {
+    filtered = filtered.filter(row => 
+      row.machineId && machineIds.some(selectedId => selectedId.toString() === row.machineId.toString())
+    );
+  }
+
+  // ✅ Apply line filter (if line filter is selected)
+  if ((selectedFilter === 'line' || pendingFilter === 'line') && lineIds.length > 0) {
+    filtered = filtered.filter(row => 
+      row.lineNumber && lineIds.some(selectedId => selectedId.toString() === row.lineNumber.toString())
+    );
+  }
+
+  return filtered;
 };
 
 // ✅ ALSO FIX: Update fetchOperatorMapping to return the mapping
@@ -665,11 +737,32 @@ const fetchOperatorMapping = async () => {
 
 
 
+// ✅ ALSO UPDATE: The tile data to match Operator.jsx format
 const tileData = [
-  { label: "Productive Time %", value: calculateProductiveTimePercentage().toFixed(1) + "%", bg: "tile-bg-blue", color: "tile-color-blue" },
-  { label: "Needle Time", value: calculateNeedleTimePercentage().toFixed(1) + "%", bg: "tile-bg-green", color: "tile-color-green" },
-  { label: "Sewing Speed", value: calculateAverageSewingSpeed().toFixed(0), bg: "tile-bg-orange", color: "tile-color-orange" },
-  { label: "Total Hours", value: totalHours.toFixed(2), bg: "tile-bg-pink", color: "tile-color-pink" },
+  { 
+    label: "Productive Time %", 
+    value: calculateProductiveTimePercentage().toFixed(2) + "%", // ✅ Changed from .1 to .2 to match Operator
+    bg: "tile-bg-blue", 
+    color: "tile-color-blue" 
+  },
+  { 
+    label: "Needle Time %", // ✅ Changed from "Needle Time" to "Needle Time %" to match Operator
+    value: calculateNeedleTimePercentage().toFixed(2) + "%", // ✅ Changed from .1 to .2 to match Operator
+    bg: "tile-bg-green", 
+    color: "tile-color-green" 
+  },
+  { 
+    label: "Sewing Speed", 
+    value: calculateAverageSewingSpeed().toFixed(0), 
+    bg: "tile-bg-orange", 
+    color: "tile-color-orange" 
+  },
+  {
+    label: "Total Hours",
+    value: formatHoursToTime(totalHours), // ✅ Use formatHoursToTime to match "50h 0m" format
+    bg: "tile-bg-pink",
+    color: "tile-color-pink",
+  },
 ];
 
 
@@ -708,6 +801,7 @@ const tileData = [
   };
 
   const handleGenerate = async () => {
+    
     // Check if both from and to dates are selected
     if (!from || !to) {
       alert("Please select both 'From' and 'To' dates before generating the report.");
@@ -1091,23 +1185,36 @@ const tileData = [
     URL.revokeObjectURL(url);
   };
 
-  const handleRawData = async () => {
-    if (showRawData) {
-      setShowRawData(false);
-    } else {
-      if (!dataGenerated) {
-        await handleGenerate();
-      }
-      setShowRawData(true);
-      
-      // ✅ Ensure operator mapping is loaded before fetching raw data
-      if (Object.keys(operatorMapping).length === 0) {
-        await fetchOperatorMapping();
-      }
-      
-      await fetchRawData();
+// ✅ UPDATED: handleRawData function (remove operator mapping logic)
+const handleRawData = async () => {
+  if (showRawData) {
+    setShowRawData(false);
+  } else {
+    if (!dataGenerated) {
+      await handleGenerate();
     }
-  };
+    setShowRawData(true);
+    await fetchRawData(); // ✅ Simplified - no operator mapping needed
+  }
+};
+// ✅ UPDATE: Raw data table headers (use Operator.jsx style when operator filter is selected)
+const getRawDataHeaders = (filter) => {
+  if (filter === 'operator') {
+    return [
+      "S.No", "Operator ID", "Operator Name", "Machine ID", "Line Number", "Date", 
+      "Start Time", "End Time", "Mode", "Mode Description", "Stitch Count", 
+      "Needle Runtime", "Needle Stop Time", "Duration", "SPM", "Calculation Value",
+      "TX Log ID", "STR Log ID", "Created At"
+    ];
+  } else {
+    return [
+      "S.No", "Machine ID", "Line Number", "Operator ID", "Operator Name", "Date", 
+      "Start Time", "End Time", "Mode", "Mode Description", "Stitch Count", 
+      "Needle Runtime", "Needle Stop Time", "Duration", "SPM", "Calculation Value",
+      "TX Log ID", "STR Log ID", "Created At"
+    ];
+  }
+};
 
   const Pagination = () => (
     <div className="machine-pagination">
@@ -1150,6 +1257,13 @@ const tileData = [
 
   return (
     <div className="machine-root">
+ {loading && (
+      <div className="loading-overlay">
+        <div className="spinner" />
+        <span>Loading ... </span>
+      </div>
+    )}
+
       <style>{multiSelectStyles}</style>
       
       {/* Title and Buttons Row */}
@@ -1220,9 +1334,20 @@ const tileData = [
               </div>
             </div>
 
-            <select
+                       <select
               value={pendingFilter}
-              onChange={(e) => setPendingFilter(e.target.value)}
+              onChange={(e) => {
+                const newFilter = e.target.value;
+                setPendingFilter(newFilter);
+                setSelectedFilter(newFilter);
+                setPage(1);
+                setShowRawData(false);
+                setData([]);
+                setRawData([]);
+                setDataGenerated(false);
+                // Do NOT fetch data here!
+                // Only update state, wait for Generate button
+              }}
               className="machine-select"
               style={{ minWidth: 140, height: 42, fontSize: 13, padding: 5 }}
             >

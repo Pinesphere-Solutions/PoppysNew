@@ -216,7 +216,8 @@ export default function Line({
       
       const backendRows = response.data.summary || [];
       
-      // ✅ Map line-specific backend data to frontend structure
+      // ✅ Fix the data mapping to use correct backend field name
+      
       const mappedRows = backendRows.map((row, idx) => {
         const lineNumber = row["Line Number"] || row["line_number"] || row["LINE_NUMBER"];
         
@@ -243,7 +244,8 @@ export default function Line({
           needleBreakDecimal: convertHHMMToDecimal(row["Needle Break"]) || 0,
           pt: row["PT %"] || 0,
           npt: row["NPT %"] || 0,
-          needleRuntime: row["Needle Runtime %"] || 0,
+          // ✅ FIX: Use correct backend field name for needle time
+          needleRuntime: row["Needle Time %"] || 0,  // ✅ Changed from "Needle Runtime %" to "Needle Time %"
           sewingSpeed: row["SPM"] || 0,
           stitchCount: row["Stitch Count"] || 0,
           // ✅ Add tile data for access in component
@@ -426,40 +428,137 @@ export default function Line({
   const maintenanceSum = sumByKey("maintenanceDecimal");
   const needleBreakSum = sumByKey("needleBreakDecimal");
 
-  // ✅ Recalculate tile data based on filtered results
-  const pieRow = filtered[0] || {};
-  const tile1ProductivityData = pieRow.tile1_productive_time || {};
-  const tile2NeedleTimeData = pieRow.tile2_needle_time || {};
-  const tile3SewingSpeedData = pieRow.tile3_sewing_speed || {};
-  const tile4TotalHoursData = pieRow.tile4_total_hours || {};
+  // ✅ Calculate tile data based on filtered results, not from backend
 
-  // ✅ Update tile data to reflect filtered results
-  const tiles = [
-    {
-      label: "Productive Time %",
-      value: tile1ProductivityData.percentage + "%" || "0%",
-      bg: "tile-bg-blue",
-      color: "tile-color-blue",
-    },
-    {
-      label: "Needle Time %",
-      value: (tile2NeedleTimeData.percentage || 0) + "%",
-      bg: "tile-bg-green",
-      color: "tile-color-green",
-    },
-    { 
-      label: "Sewing Speed", 
-      value: tile3SewingSpeedData.average_spm || 0,
-      bg: "tile-bg-orange", 
-      color: "tile-color-orange" 
-    },
-    {
-      label: "Total Hours",
-      value: tile4TotalHoursData.total_hours || "00:00",
-      bg: "tile-bg-pink",
-      color: "tile-color-pink",
-    },
-  ];
+  // ✅ Fix the tile data calculation to use the correct format
+  
+  const getTileDataFromFiltered = () => {
+    if (filtered.length === 0) {
+      return [
+        {
+          label: "Productive Time %",
+          value: "0%",
+          bg: "tile-bg-blue",
+          color: "tile-color-blue",
+        },
+        {
+          label: "Needle Time %", 
+          value: "0%",
+          bg: "tile-bg-green",
+          color: "tile-color-green",
+        },
+        { 
+          label: "Sewing Speed", 
+          value: "0",
+          bg: "tile-bg-orange", 
+          color: "tile-color-orange" 
+        },
+        {
+          label: "Total Hours",
+          value: "0h 0m",  // ✅ Changed format
+          bg: "tile-bg-pink",
+          color: "tile-color-pink",
+        },
+      ];
+    }
+  
+    // ✅ Use backend tile data if available, otherwise calculate from filtered data
+    const firstRow = filtered[0] || {};
+    const hasBackendTileData = firstRow.tile1_productive_time && 
+                               Object.keys(firstRow.tile1_productive_time).length > 0;
+  
+    if (hasBackendTileData) {
+      // ✅ Use backend tile data but format correctly
+      return [
+        {
+          label: "Productive Time %",
+          value: `${(firstRow.tile1_productive_time.percentage || 0).toFixed(2)}%`,
+          bg: "tile-bg-blue",
+          color: "tile-color-blue",
+        },
+        {
+          label: "Needle Time %",
+          value: `${(firstRow.tile2_needle_time.percentage || 0).toFixed(2)}%`,
+          bg: "tile-bg-green",
+          color: "tile-color-green",
+        },
+        { 
+          label: "Sewing Speed", 
+          value: Math.round(firstRow.tile3_sewing_speed.average_spm || 0).toString(),
+          bg: "tile-bg-orange", 
+          color: "tile-color-orange" 
+        },
+        {
+          label: "Total Hours",
+          // ✅ Convert HH:MM format to "Xh Ym" format
+          value: convertHHMMToHoursMinutes(firstRow.tile4_total_hours.total_hours || "00:00"),
+          bg: "tile-bg-pink",
+          color: "tile-color-pink",
+        },
+      ];
+    } else {
+      // ✅ Calculate from filtered data as fallback
+      const avgPT = filtered.reduce((sum, row) => sum + (parseFloat(row.pt) || 0), 0) / filtered.length;
+      const avgNeedleRuntime = filtered.reduce((sum, row) => sum + (parseFloat(row.needleRuntime) || 0), 0) / filtered.length;
+      const avgSewingSpeed = filtered.reduce((sum, row) => sum + (parseFloat(row.sewingSpeed) || 0), 0) / filtered.length;
+      const totalHoursDisplay = formatHoursMins(totalHoursSum);
+  
+      return [
+        {
+          label: "Productive Time %",
+          value: `${avgPT.toFixed(2)}%`,
+          bg: "tile-bg-blue",
+          color: "tile-color-blue",
+        },
+        {
+          label: "Needle Time %",
+          value: `${avgNeedleRuntime.toFixed(2)}%`,
+          bg: "tile-bg-green",
+          color: "tile-color-green",
+        },
+        { 
+          label: "Sewing Speed", 
+          value: Math.round(avgSewingSpeed).toString(),
+          bg: "tile-bg-orange", 
+          color: "tile-color-orange" 
+        },
+        {
+          label: "Total Hours",
+          value: totalHoursDisplay,  // ✅ This already uses formatHoursMins which gives "Xh Ym" format
+          bg: "tile-bg-pink",
+          color: "tile-color-pink",
+        },
+      ];
+    }
+  };
+  
+  // ✅ Add helper function to convert HH:MM to "Xh Ym" format
+  function convertHHMMToHoursMinutes(timeStr) {
+    if (!timeStr || timeStr === "00:00") return "0h 0m";
+    
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return `${hours}h ${minutes}m`;
+  }
+  
+  // ✅ Remove these old lines:
+  // const pieRow = filtered[0] || {};
+  // const tile1ProductivityData = pieRow.tile1_productive_time || {};
+  // const tile2NeedleTimeData = pieRow.tile2_needle_time || {};
+  // const tile3SewingSpeedData = pieRow.tile3_sewing_speed || {};
+  // const tile4TotalHoursData = pieRow.tile4_total_hours || {};
+  
+  // const tiles = [
+  //   {
+  //     label: "Productive Time %",
+  //     value: tile1ProductivityData.percentage + "%" || "0%",
+  //     bg: "tile-bg-blue",
+  //     color: "tile-color-blue",
+  //   },
+  //   ... rest of old tile data
+  // ];
+  
+  // ✅ Use the new tile data calculation
+  const tiles = getTileDataFromFiltered();
 
   // ✅ Pagination calculations
   const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));

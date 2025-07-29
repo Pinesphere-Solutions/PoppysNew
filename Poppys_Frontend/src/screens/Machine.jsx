@@ -369,42 +369,96 @@ const availableMachineIds = getAvailableMachineIds();
   const maintenanceSum = sumByKey("maintenanceDecimal");
   const needleBreakSum = sumByKey("needleBreakDecimal");
 
-  // ✅ Recalculate tile data based on filtered results
-  const pieRow = filtered[0] || {};
-  const tile1ProductivityData = pieRow.tile1_productivity || {};
-  const tile2NeedleRuntimeData = pieRow.tile2_needle_runtime || {};
-  const tile3SewingSpeedData = pieRow.tile3_sewing_speed || {};
-  const tile4TotalHoursData = pieRow.tile4_total_hours || {};
+  // Replace the existing tile data calculation with this updated version
+  
+  // ✅ Calculate tile data based on filtered results, not from backend
+  const getTileDataFromFiltered = () => {
+    if (filtered.length === 0) {
+      return [
+        {
+          label: "Productive Time %",
+          value: "0%",
+          bg: "tile-bg-blue",
+          color: "tile-color-blue",
+        },
+        {
+          label: "Needle Runtime %", 
+          value: "0%",
+          bg: "tile-bg-green",
+          color: "tile-color-green",
+        },
+        { 
+          label: "Sewing Speed", 
+          value: "0",
+          bg: "tile-bg-orange", 
+          color: "tile-color-orange" 
+        },
+        {
+          label: "Total Hours",
+          value: "00:00",
+          bg: "tile-bg-pink",
+          color: "tile-color-pink",
+        },
+      ];
+    }
+  
+    // ✅ Calculate averages and totals from filtered data
+    const avgPT = filtered.reduce((sum, row) => sum + (parseFloat(row.pt) || 0), 0) / filtered.length;
+    const avgNeedleRuntime = filtered.reduce((sum, row) => sum + (parseFloat(row.needleRuntime) || 0), 0) / filtered.length;
+    const avgSewingSpeed = filtered.reduce((sum, row) => sum + (parseFloat(row.sewingSpeed) || 0), 0) / filtered.length;
+    
+    // ✅ Calculate total hours from filtered results
+    const totalHoursDisplay = formatHoursMins(totalHoursSum);
+  
+    return [
+      {
+        label: "Productive Time %",
+        value: `${avgPT.toFixed(2)}%`,
+        bg: "tile-bg-blue",
+        color: "tile-color-blue",
+      },
+      {
+        label: "Needle Runtime %",
+        value: `${avgNeedleRuntime.toFixed(2)}%`,
+        bg: "tile-bg-green",
+        color: "tile-color-green",
+      },
+      { 
+        label: "Sewing Speed", 
+        value: Math.round(avgSewingSpeed).toString(),
+        bg: "tile-bg-orange", 
+        color: "tile-color-orange" 
+      },
+      {
+        label: "Total Hours",
+        value: totalHoursDisplay,
+        bg: "tile-bg-pink",
+        color: "tile-color-pink",
+      },
+    ];
+  };
+  
+  // ✅ Replace the old tileData calculation
+  // Remove these old lines:
+  // const pieRow = filtered[0] || {};
+  // const tile1ProductivityData = pieRow.tile1_productivity || {};
+  // const tile2NeedleRuntimeData = pieRow.tile2_needle_runtime || {};
+  // const tile3SewingSpeedData = pieRow.tile3_sewing_speed || {};
+  // const tile4TotalHoursData = pieRow.tile4_total_hours || {};
+  
+  // const tileData = [
+  //   {
+  //     label: "Productive Time %",
+  //     value: tile1ProductivityData.productivity_percentage_average + "%" || "0%",
+  //     bg: "tile-bg-blue",
+  //     color: "tile-color-blue",
+  //   },
+  //   ... rest of old tile data
+  // ];
+  
+  // ✅ Use the new tile data calculation
+  const tileData = getTileDataFromFiltered();
 
-  // ✅ Update tile data to reflect filtered results
-  const tileData = [
-    {
-      label: "Productive Time %",
-      value: tile1ProductivityData.productivity_percentage_average + "%" || "0%",
-      bg: "tile-bg-blue",
-      color: "tile-color-blue",
-    },
-    {
-      label: "Needle Runtime %",
-      value: (pieRow.tile2_needle_runtime?.average_needle_runtime_decimal || 0) + "%",
-      bg: "tile-bg-green",
-      color: "tile-color-green",
-    },
-    { 
-      label: "Sewing Speed", 
-      value: tile3SewingSpeedData.average_sewing_speed_decimal || 0,
-      bg: "tile-bg-orange", 
-      color: "tile-color-orange" 
-    },
-    {
-      label: "Total Hours",
-      value: tile4TotalHoursData.total_hours_sum || "00:00",
-      bg: "tile-bg-pink",
-      color: "tile-color-pink",
-    },
-  ];
-
-  // ...existing pagination code...
   const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const paginated = filtered.slice(
     (page - 1) * rowsPerPage,
@@ -858,6 +912,14 @@ const RawPagination = () => (
 
   return (
  <div className="machine-root">
+    <style>
+      {`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}
+    </style>
       {/* Title and Buttons Row - Fix the export buttons to use correct functions */}
       <div className="machine-title-row">
         <div className="machine-title">
@@ -1007,13 +1069,39 @@ const RawPagination = () => (
                 </tr>
               </thead>
               <tbody>
-                {filteredRawPaginated.length === 0 ? (
+                {loading ? (
+                  // Show loading rows for raw data when data is being fetched
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <tr key={`raw-loading-${idx}`}>
+                      {rawDataHeaders.map((_, colIdx) => (
+                        <td key={colIdx} style={{ textAlign: "center", padding: "20px" }}>
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            color: '#666'
+                          }}>
+                            <div style={{
+                              width: '16px',
+                              height: '16px',
+                              border: '2px solid #f3f3f3',
+                              borderTop: '2px solid #3498db',
+                              borderRadius: '50%',
+                              animation: 'spin 1s linear infinite'
+                            }}></div>
+                            Loading...
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : filteredRawPaginated.length === 0 ? (
                   <tr>
                     <td
                       colSpan={rawDataHeaders.length}
                       className="machine-table-nodata"
                     >
-                      {loading ? "Loading raw data..." : (from || to || machineId) ? "No raw data found for the selected filters." : "No raw data found."}
+                      {(from || to || machineId) ? "No raw data found for the selected filters." : "No raw data found."}
                     </td>
                   </tr>
                 ) : (
