@@ -301,6 +301,8 @@ class MachineReport(APIView):
                         "Total SPM": 0,
                         "SPM Instances": 0,
                         "Stitch Count": 0,
+                         # ✅ NEW: Add Piece Count tracking
+                        "Piece Count": 0,
                     }
                     calculation_logs[report_key] = []
 
@@ -309,6 +311,9 @@ class MachineReport(APIView):
                 reserve = float(getattr(log, "RESERVE", 0) or 0)
                 needle_runtime = float(getattr(log, "NEEDLE_RUNTIME", 0) or 0)
                 stitch_count = int(getattr(log, "STITCH_COUNT", 0) or 0)
+                 # ✅ NEW: Get PIECECNT from log
+                piece_count = int(getattr(log, "PIECECNT", 0) or 0)
+
                 duration_hhmm = lambda h: f"{int(h):02d}:{int(round((h - int(h)) * 60)):02d}"
 
                 # Total Hours
@@ -399,7 +404,15 @@ class MachineReport(APIView):
                     "Value": f"{spm_value_all:.2f}",
                     "Calculation / Notes": "RESERVE for all modes"
                 })
-
+                # ✅ NEW: Add PIECECNT to all modes (similar to SPM)
+                if piece_count > 0:
+                    report[report_key]["Piece Count"] += piece_count
+                    logger.info(f"Added Piece Count: {piece_count} (Total: {report[report_key]['Piece Count']})")
+                    calculation_logs[report_key].append({
+                        "Metric": "Piece Count (All Modes)",
+                        "Value": f"{piece_count}",
+                        "Calculation / Notes": "PIECECNT for all modes"
+                    })
         # Generate summary from all collected data
         for idx, (report_key, data) in enumerate(report.items(), 1):
             # Extract date and machine_id from the key
@@ -414,6 +427,8 @@ class MachineReport(APIView):
             needle_time_pct = (needle_runtime_secs / PT_secs * 100) if PT_secs else 0
             spm = (data["Total SPM"] / data["SPM Instances"]) if data["SPM Instances"] else 0
             stitch_count = data.get("Stitch Count", 0)
+            # ✅ NEW: PIECECNT calculation
+            piece_count = data.get("Piece Count", 0)
 
             def hours_to_hhmm(hours):
                 h = int(hours)
@@ -446,6 +461,8 @@ class MachineReport(APIView):
                 "Needle Time %": round(needle_time_pct, 2),
                 "SPM": round(spm, 2),
                 "Stitch Count": stitch_count,
+                # ✅ NEW: Add PIECECNT to summary
+                "Piece Count": piece_count,
                 "Start Time": start_time,
                 "End Time": end_time,
             })
@@ -1150,7 +1167,145 @@ class MachineReport(APIView):
                 "instances_count": machine_total_hours_data[machine_id]["count"],
                 "formula": f"Sum of all mode hours for Machine {machine_id} = {total_hours:.4f} hours"
             }
+        # ...existing tile calculations...
+
+        # ✅ TILE 5 CALCULATION - PIECE COUNT TOTAL
+        logger.info("=== TILE 5 CALCULATION - PIECE COUNT TOTAL ===")
         
+        # Calculate total piece count sum from all machines
+        total_piece_count = 0
+        machine_piece_count_data = {}
+        piece_count_instances = 0
+        
+        # ✅ DETAILED BREAKDOWN LOGGING WITH FORMULAS
+        logger.info("=== DETAILED TILE 5 BREAKDOWN WITH FORMULAS ===")
+        logger.info("STEP 1: Individual Machine Piece Count Collection")
+        logger.info("Formula: Piece Count = Sum of PIECECNT values per machine per date")
+        logger.info("Note: All instances are included, no exclusion rule applied")
+        logger.info("-" * 70)
+        
+        for report_key, data in report.items():
+            date_part, machine_id = report_key.split('_', 1)
+            machine_id = int(machine_id)
+            
+            # Get piece count for this machine/date
+            machine_piece_count = data.get("Piece Count", 0)
+            
+            # ✅ DETAILED LOGGING FOR EACH MACHINE
+            logger.info(f"Machine {machine_id} on {date_part}:")
+            logger.info(f"  ├─ Piece Count: {machine_piece_count}")
+            logger.info(f"  ├─ Formula: Sum of PIECECNT values = {machine_piece_count}")
+            
+            # Add to total calculation
+            total_piece_count += machine_piece_count
+            piece_count_instances += 1
+            
+            # ✅ Accumulate for unique machines
+            if machine_id not in machine_piece_count_data:
+                machine_piece_count_data[machine_id] = {"total": 0, "count": 0}
+            machine_piece_count_data[machine_id]["total"] += machine_piece_count
+            machine_piece_count_data[machine_id]["count"] += 1
+            
+            logger.info(f"  ├─ Status: INCLUDED (All instances included)")
+            logger.info(f"  └─ Running Total: {total_piece_count} pieces, Instances: {piece_count_instances}")
+        
+        logger.info("-" * 70)
+        logger.info("STEP 2: Total Piece Count Sum Calculation")
+        logger.info(f"Formula: Total Piece Count = Σ(All Machine Piece Counts)")
+        logger.info(f"Calculation: Sum of all individual machine piece counts = {total_piece_count} pieces")
+        logger.info(f"✅ TOTAL INSTANCES PROCESSED: {piece_count_instances}")
+        logger.info(f"✅ NO EXCLUSIONS APPLIED: All instances are valid")
+        
+        # Calculate individual machine totals
+        machine_piece_count_summary = {}
+        logger.info("-" * 70)
+        logger.info("STEP 2B: Individual Machine Piece Count Summary")
+        for machine_id, data in machine_piece_count_data.items():
+            machine_piece_count_summary[machine_id] = data["total"]
+            logger.info(f"Machine {machine_id}: {data['total']} pieces total across {data['count']} instances")
+        
+        # Create detailed machine breakdown
+        piece_count_machine_breakdown = {}
+        for machine_id, total_pieces in machine_piece_count_summary.items():
+            piece_count_machine_breakdown[f"Machine_{machine_id}"] = {
+                "total_pieces": total_pieces,
+                "instances_count": machine_piece_count_data[machine_id]["count"],
+                "formula": f"Sum of PIECECNT values for Machine {machine_id} = {total_pieces} pieces"
+            }
+        
+        # ✅ Create Tile 5 data structure
+        tile5_piece_count = {
+            "tile_name": "Total Piece Count",
+            "total_piece_count": total_piece_count,
+            "total_instances": piece_count_instances,
+            "unique_machines": len(machine_piece_count_summary),
+            "unit": "Pieces",
+            "machine_breakdown": piece_count_machine_breakdown,
+            # ✅ ADD FORMULA DETAILS FOR FRONTEND
+            "formulas": {
+                "sum_formula": f"Σ(All Machine Piece Counts) = {total_piece_count} pieces",
+                "no_exclusion_rule": "All instances are included in calculation",
+                "collection_formula": "Machine Total = Sum of PIECECNT values per machine"
+            }
+        }
+        
+        logger.info("-" * 70)
+        logger.info("STEP 3: Individual Machine Piece Count Details")
+        logger.info("Formula per Machine: Sum of PIECECNT values = Total pieces")
+        
+        for machine_id, total_pieces in machine_piece_count_summary.items():
+            instances = machine_piece_count_data[machine_id]["count"]
+            logger.info(f"Machine {machine_id}:")
+            logger.info(f"  ├─ Total Pieces: {total_pieces}")
+            logger.info(f"  ├─ Instances: {instances}")
+            logger.info(f"  └─ Contribution to Fleet: {(total_pieces/total_piece_count*100):.2f}% of total")
+        
+        logger.info("-" * 70)
+        logger.info("STEP 4: FINAL TILE 5 SUMMARY")
+        logger.info(f"📊 TILE 5 - TOTAL PIECE COUNT BREAKDOWN:")
+        logger.info(f"  ├─ Total Instances Processed: {piece_count_instances}")
+        logger.info(f"  ├─ Unique Machines: {len(machine_piece_count_summary)}")
+        logger.info(f"  └─ Total Piece Count: {total_piece_count} pieces")
+        logger.info("")
+        logger.info("🔍 KEY INSIGHTS:")
+        logger.info(f"  • Unit: Pieces (count)")
+        logger.info(f"  • No Exclusions: All data points included")
+        logger.info(f"  • Direct Summation: Simple addition of all machine piece counts")
+        logger.info(f"  • Fleet Total: {total_piece_count} pieces across {len(machine_piece_count_summary)} machines")
+        
+        logger.info("-" * 70)
+        logger.info("STEP 5: MACHINE PIECE COUNT RANKING")
+        sorted_piece_count_machines = sorted(machine_piece_count_summary.items(), key=lambda x: x[1], reverse=True)
+        for rank, (machine_id, total_pieces) in enumerate(sorted_piece_count_machines, 1):
+            instances = machine_piece_count_data[machine_id]["count"]
+            percentage_of_fleet = (total_pieces / total_piece_count * 100) if total_piece_count > 0 else 0
+            logger.info(f"  #{rank}. Machine {machine_id}: {total_pieces} pieces - {percentage_of_fleet:.1f}% of fleet ({instances} instances)")
+            
+        logger.info("=== END TILE 5 DETAILED BREAKDOWN ===")
+        
+        # ✅ DETAILED LOGGING FOR TILE 5 CALCULATIONS
+        logger.info("=== TILE 5 CALCULATION DETAILS ===")
+        logger.info(f"Total Instances Processed: {piece_count_instances}")
+        logger.info(f"Total Piece Count: {total_piece_count} pieces")
+        logger.info(f"Unique Machines Contributing: {len(machine_piece_count_summary)}")
+        logger.info(f"Unit: Pieces (count)")
+        logger.info(f"Calculation Method: Direct summation of all machine piece counts")
+        
+        # Log individual machine breakdown
+        for machine_id, total_pieces in machine_piece_count_summary.items():
+            instances = machine_piece_count_data[machine_id]["count"]
+            percentage = (total_pieces / total_piece_count * 100) if total_piece_count > 0 else 0
+            logger.info(f"Machine {machine_id}: {total_pieces} pieces = {percentage:.1f}% of fleet ({instances} instances)")
+        
+        # ✅ CALCULATION EXPLANATION LOG FOR TILE 5
+        logger.info("=== TILE 5 CALCULATION EXPLANATION ===")
+        logger.info("1. Machine Piece Count = Sum of PIECECNT values per machine per date")
+        logger.info("2. Fleet Total Piece Count = Sum of all Machine Piece Counts across all dates")
+        logger.info(f"   Example: Σ(Machine Piece Counts) = {total_piece_count} pieces")
+        logger.info("3. No Exclusions = All PIECECNT values are included regardless of value")
+        logger.info("4. Unit = Pieces (integer count) - Direct count of pieces produced")
+
+        logger.info("=== END TILE 5 DETAILED BREAKDOWN ===")
         # ✅ Create Tile 4 data structure
         tile4_total_hours = {
             "tile_name": "Total Hours",
@@ -1245,7 +1400,9 @@ class MachineReport(APIView):
             "tile1_productivity": tile1_productivity,  # ✅ Tile 1 data
             "tile2_needle_runtime": tile2_needle_runtime,  # ✅ Tile 2 data
             "tile3_sewing_speed": tile3_sewing_speed,  # ✅ Tile 3 data
-            "tile4_total_hours": tile4_total_hours  # ✅ Add Tile 4 data to response
+            "tile4_total_hours": tile4_total_hours,  # ✅ Add Tile 4 data to response
+            "tile5_piece_count": tile5_piece_count  # ✅ NEW: Add Tile 5 data to response
+
         })
         
 """ Module 1 - Machine Report - Raw Data"""   
@@ -1298,6 +1455,9 @@ class MachineRawDataReport(APIView):
                     "Duration": getattr (log, 'DEVICE_ID', ''),
                     "SPM": getattr(log, 'RESERVE', 0),
                     "Calculation Value": getattr(log, 'RESERVE', 0),
+                     # ✅ NEW FIELDS ADDED
+                    "AVERG": getattr(log, 'AVERG', 0),
+                    "PIECECNT": getattr(log, 'PIECECNT', 0),
                     "TX Log ID": getattr(log, 'Tx_LOGID', ''),
                     "STR Log ID": getattr(log, 'Str_LOGID', ''),
                     "Created At": getattr(log, 'created_at', '').strftime("%Y-%m-%d %H:%M:%S") if hasattr(log, 'created_at') and getattr(log, 'created_at') else ""
@@ -1524,6 +1684,7 @@ class LineReport(APIView):
                             "Total SPM": 0,         # Sum of all SPM values
                             "SPM Instances": 0,     # Count of SPM instances
                             "Stitch Count": 0,      # Sum of stitch counts
+                            "Piece Count": 0,       # Sum of piece counts
                         }
                         calculation_logs[report_key] = []
 
@@ -1582,6 +1743,11 @@ class LineReport(APIView):
                         line_report[report_key]["Total SPM"] += reserve
                         line_report[report_key]["SPM Instances"] += 1
                         logger.info(f"  Added SPM: {reserve:.2f} (Total instances: {line_report[report_key]['SPM Instances']})")
+                            # ✅ NEW: PIECECNT AGGREGATION (ALL MODES)
+                    piece_count = int(getattr(log, "PIECECNT", 0) or 0)
+                    if piece_count > 0:
+                        line_report[report_key]["Piece Count"] += piece_count
+                        logger.info(f"  Added Piece Count: {piece_count} (Total: {line_report[report_key]['Piece Count']})")
 
             # ===== SUMMARY GENERATION =====
             logger.info("\n=== GENERATING LINE SUMMARY ===")
@@ -1670,6 +1836,8 @@ class LineReport(APIView):
                     "Needle Time %": round(needle_time_pct, 2),
                     "SPM": round(sewing_speed, 2),
                     "Stitch Count": data["Stitch Count"],
+                    # ✅ NEW: Add Piece Count to line summary
+                    "Piece Count": data["Piece Count"],
                     "Machine Count": machine_count,
                     "Machine List": machine_list  # For debugging/reference
                 }
@@ -1775,7 +1943,19 @@ class LineReport(APIView):
                 "total_hours_decimal": round(fleet_total_hours, 2),
                 "lines_processed": len(line_report)
             }
-
+                    # ===== TILE 5: TOTAL PIECE COUNT =====
+            logger.info("--- TILE 5: TOTAL PIECE COUNT ---")
+            
+            # Sum all piece counts across all lines
+            fleet_total_piece_count = sum(data["Piece Count"] for data in line_report.values())
+            
+            logger.info(f"Fleet Total Piece Count: {fleet_total_piece_count} pieces")
+            
+            tile5_total_piece_count = {
+                "tile_name": "Total Piece Count",
+                "total_piece_count": fleet_total_piece_count,
+                "lines_processed": len(line_report)
+            }
             # ===== FINAL RESPONSE =====
             logger.info(f"\n=== LINE REPORT COMPLETED ===")
             logger.info(f"Summary records generated: {len(summary)}")
@@ -1789,6 +1969,8 @@ class LineReport(APIView):
                 "tile2_needle_time": tile2_needle_time, 
                 "tile3_sewing_speed": tile3_sewing_speed,
                 "tile4_total_hours": tile4_total_hours,
+                 # ✅ NEW: Add Tile 5 for piece count
+                "tile5_total_piece_count": tile5_total_piece_count,
                 "metadata": {
                     "total_lines_processed": len(line_report),
                     "total_summary_records": len(summary),
@@ -1857,6 +2039,9 @@ class LineRawDataReport(APIView):
                 "Needle Stop Time": getattr(log, 'NEEDLE_STOPTIME', ''),
                 "Duration": getattr (log, 'DEVICE_ID', ''),  # Calculate if needed
                 "SPM": getattr(log, 'RESERVE', 0),
+                  # ✅ NEW FIELDS ADDED
+                "AVERG": getattr(log, 'AVERG', 0),
+                "PIECECNT": getattr(log, 'PIECECNT', 0),
                 "TX Log ID": getattr(log, 'Tx_LOGID', ''),
                 "STR Log ID": getattr(log, 'Str_LOGID', ''),
                 "Created At": getattr(log, 'created_at', '').strftime("%Y-%m-%d %H:%M:%S") if hasattr(log, 'created_at') and getattr(log, 'created_at') else ""
@@ -2149,6 +2334,8 @@ class OperatorReport(APIView):
                         "Total SPM": 0,            # Sum of all SPM values
                         "SPM Instances": 0,        # Count of SPM instances
                         "Stitch Count": 0,         # Sum of stitch counts
+                         # ✅ NEW: Add Piece Count tracking
+                        "Piece Count": 0,
                         # Work hours tracking for idle calculation
                         "Work Hours": 0,           # Sum of all modes except idle
                     }
@@ -2217,6 +2404,12 @@ class OperatorReport(APIView):
                     operator_report[report_key]["Total SPM"] += reserve
                     operator_report[report_key]["SPM Instances"] += 1
                     logger.info(f"  Added SPM: {reserve:.2f} (Total instances: {operator_report[report_key]['SPM Instances']})")
+                 # ✅ NEW: PIECECNT AGGREGATION (ALL MODES)
+                piece_count = int(getattr(log, "PIECECNT", 0) or 0)
+                if piece_count > 0:
+                    operator_report[report_key]["Piece Count"] += piece_count
+                    logger.info(f"  Added Piece Count: {piece_count} (Total: {operator_report[report_key]['Piece Count']})")
+
 
         # ===== IDLE TIME CALCULATION FOR EACH OPERATOR =====
         logger.info("\n=== IDLE TIME CALCULATION PHASE ===")
@@ -2340,6 +2533,7 @@ class OperatorReport(APIView):
                 "Needle Runtime %": round(needle_time_pct, 2),
                 "SPM": sewing_speed_whole,  # Whole number
                 "Stitch Count": stitch_count_whole,  # Whole number
+                "Piece Count": int(data["Piece Count"]),
                 "Machines Worked": machines_count,
                 "Lines Worked": lines_count,
                 "Machine List": machines_list,  # For reference
@@ -2421,9 +2615,18 @@ class OperatorReport(APIView):
             "total_hours_decimal": round(total_all_hours, 2),
             "operators_processed": len(operator_report)
         }
-
+        
         logger.info(f"Operator report completed: {len(summary)} records")
         
+        # ===== TILE 5: TOTAL PIECE COUNT =====
+        total_piece_count = sum(data["Piece Count"] for data in operator_report.values())
+        
+        tile5_total_piece_count = {
+            "tile_name": "Total Piece Count",
+            "total_piece_count": total_piece_count,
+            "operators_processed": len(operator_report)
+        }
+
         return Response({
             "summary": summary,
             "excluded_logs": excluded_logs,
@@ -2431,6 +2634,8 @@ class OperatorReport(APIView):
             "tile2_needle_time": tile2_needle_time, 
             "tile3_sewing_speed": tile3_sewing_speed,
             "tile4_total_hours": tile4_total_hours,
+            # ✅ NEW: Add Tile 5 for piece count
+            "tile5_total_piece_count": tile5_total_piece_count,
             "metadata": {
                 "total_operators_processed": len(operator_report),
                 "total_summary_records": len(summary),
@@ -2509,6 +2714,9 @@ class OperatorRawDataReport(APIView):
                 # Calculate if needed
                 "SPM": getattr(log, 'RESERVE', 0),
                 "Calculation Value": getattr(log, 'RESERVE', 0),
+                  # ✅ NEW FIELDS ADDED
+                "AVERG": getattr(log, 'AVERG', 0),
+                "PIECECNT": getattr(log, 'PIECECNT', 0),
                 "TX Log ID": getattr(log, 'Tx_LOGID', ''),
                 "STR Log ID": getattr(log, 'Str_LOGID', ''),
                 "Created At": getattr(log, 'created_at', '').strftime("%Y-%m-%d %H:%M:%S") if hasattr(log, 'created_at') and getattr(log, 'created_at') else ""

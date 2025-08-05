@@ -4,7 +4,7 @@ import { FaSearch } from "react-icons/fa";
 import { SiMicrosoftexcel } from "react-icons/si";
 import { FaCalendarAlt } from "react-icons/fa";
 import { FaDownload } from "react-icons/fa";
-import '../../assets/css/style.css';
+import "../../assets/css/style.css";
 import axios from "axios";
 import * as XLSX from "xlsx";
 
@@ -32,7 +32,7 @@ const tableHeaders = [
 const rawDataHeaders = [
   "S.No",
   "Machine ID",
-  "Line Number", 
+  "Line Number",
   "Operator ID",
   "Operator Name",
   "Date",
@@ -48,7 +48,9 @@ const rawDataHeaders = [
   "Calculation Value",
   "TX Log ID",
   "STR Log ID",
-  "Created At"
+  "AVERG",
+  "PIECECNT",
+  "Created At",
 ];
 
 const pieColors = [
@@ -83,17 +85,17 @@ function formatHoursMins(decimalHours) {
 // Helper function to convert HH:MM to decimal hours for pie chart
 function convertHHMMToDecimal(timeStr) {
   if (!timeStr || timeStr === "00:00") return 0;
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours + (minutes / 60);
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  return hours + minutes / 60;
 }
 
-export default function Line({ 
-  tableOnly = false, 
-  from: propFrom = "", 
-  to: propTo = "", 
-  machineId: propMachineId = "", 
-  selectedOperatorId: propSelectedOperatorId = "", 
-  lineId: propLineId = "" 
+export default function Line({
+  tableOnly = false,
+  from: propFrom = "",
+  to: propTo = "",
+  machineId: propMachineId = "",
+  selectedOperatorId: propSelectedOperatorId = "",
+  lineId: propLineId = "",
 }) {
   // Use props for date values, similar to Machine.jsx and Operator.jsx
   const [from, setFrom] = useState(propFrom);
@@ -120,12 +122,20 @@ export default function Line({
   // ✅ Fetch line options once on component mount
   useEffect(() => {
     axios
-      .get("http://localhost:8000/api/line-report/")
-      .then(res => {
+      .get("https://oceanatlantic.pinesphere.co.in/api/line-report/")
+      .then((res) => {
         const summary = res.data.summary || [];
-        const uniqueLineIds = [...new Set(summary.map(row => {
-          return row["Line Number"] || row["line_number"] || row["LINE_NUMBER"];
-        }).filter(Boolean))];
+        const uniqueLineIds = [
+          ...new Set(
+            summary
+              .map((row) => {
+                return (
+                  row["Line Number"] || row["line_number"] || row["LINE_NUMBER"]
+                );
+              })
+              .filter(Boolean)
+          ),
+        ];
         setLineOptions(uniqueLineIds);
       })
       .catch(() => setLineOptions([]));
@@ -141,9 +151,12 @@ export default function Line({
 
       console.log("Line raw data request params:", params);
 
-      const res = await axios.get("http://localhost:8000/api/line-report/raw/", { params });
+      const res = await axios.get(
+        "https://oceanatlantic.pinesphere.co.in/api/line-report/raw/",
+        { params }
+      );
       console.log("Line raw data response:", res.data);
-      
+
       const backendRawRows = res.data.raw_data || res.data || [];
 
       const mappedRawRows = backendRawRows.map((row, idx) => ({
@@ -156,16 +169,23 @@ export default function Line({
         startTime: row["Start Time"] || row["start_time"] || "",
         endTime: row["End Time"] || row["end_time"] || "",
         mode: row["Mode"] || row["mode"] || "",
-        modeDescription: row["Mode Description"] || row["mode_description"] || getModelDescription(row["Mode"] || row["mode"]),
+        modeDescription:
+          row["Mode Description"] ||
+          row["mode_description"] ||
+          getModelDescription(row["Mode"] || row["mode"]),
         stitchCount: row["Stitch Count"] || row["stitch_count"] || "-",
         needleRuntime: row["Needle Runtime"] || row["needle_runtime"] || "-",
-        needleStopTime: row["Needle Stop Time"] || row["needle_stop_time"] || "-",
+        needleStopTime:
+          row["Needle Stop Time"] || row["needle_stop_time"] || "-",
         duration: row["Duration"] || row["duration"] || "",
         spm: row["SPM"] || row["spm"] || "0",
-        calculationValue: row["Calculation Value"] || row["calculation_value"] || "0",
+        calculationValue:
+          row["Calculation Value"] || row["calculation_value"] || "0",
         txLogId: row["TX Log ID"] || row["tx_log_id"] || "",
         strLogId: row["STR Log ID"] || row["str_log_id"] || "",
-        createdAt: row["Created At"] || row["created_at"] || ""
+        averg: row["AVERG"] || row["AVERG"] || "0",
+        piececnt: row["PIECECNT"] || row["PIECECNT"] || "0",
+        createdAt: row["Created At"] || row["created_at"] || "",
       }));
 
       console.log("Mapped line raw rows:", mappedRawRows);
@@ -181,12 +201,12 @@ export default function Line({
   const getModelDescription = (mode) => {
     const modeDescriptions = {
       1: "Sewing",
-      2: "Idle", 
+      2: "Idle",
       3: "No Feeding",
       4: "Meeting",
-      5: "Maintenance", 
+      5: "Maintenance",
       6: "Rework",
-      7: "Needle Break"
+      7: "Needle Break",
     };
     return modeDescriptions[mode] || "Unknown";
   };
@@ -196,7 +216,7 @@ export default function Line({
     setLoading(true);
     try {
       const params = {};
-      
+
       // Don't send date filters to backend, we'll filter on frontend
       if (lineId) {
         params.line_id = lineId;
@@ -209,20 +229,24 @@ export default function Line({
       }
 
       console.log("Fetching line data with params:", params);
-      
-      const response = await axios.get("http://localhost:8000/api/line-report/", { params });
-      
+
+      const response = await axios.get(
+        "https://oceanatlantic.pinesphere.co.in/api/line-report/",
+        { params }
+      );
+
       console.log("Backend response:", response.data);
-      
+
       const backendRows = response.data.summary || [];
-      
+
       // ✅ Fix the data mapping to use correct backend field name
-      
+
       const mappedRows = backendRows.map((row, idx) => {
-        const lineNumber = row["Line Number"] || row["line_number"] || row["LINE_NUMBER"];
-        
+        const lineNumber =
+          row["Line Number"] || row["line_number"] || row["LINE_NUMBER"];
+
         return {
-          sNo: row["S.no"] || row["S.No"] || (idx + 1),
+          sNo: row["S.no"] || row["S.No"] || idx + 1,
           date: row["Date"] || "",
           lineNumber: lineNumber || "N/A",
           totalHours: row["Total Hours"] || "00:00",
@@ -240,25 +264,25 @@ export default function Line({
           reworkDecimal: convertHHMMToDecimal(row["Rework Hours"]) || 0,
           noFeedingDecimal: convertHHMMToDecimal(row["No feeding Hours"]) || 0,
           meetingDecimal: convertHHMMToDecimal(row["Meeting Hours"]) || 0,
-          maintenanceDecimal: convertHHMMToDecimal(row["Maintenance Hours"]) || 0,
+          maintenanceDecimal:
+            convertHHMMToDecimal(row["Maintenance Hours"]) || 0,
           needleBreakDecimal: convertHHMMToDecimal(row["Needle Break"]) || 0,
           pt: row["PT %"] || 0,
           npt: row["NPT %"] || 0,
           // ✅ FIX: Use correct backend field name for needle time
-          needleRuntime: row["Needle Time %"] || 0,  // ✅ Changed from "Needle Runtime %" to "Needle Time %"
+          needleRuntime: row["Needle Time %"] || 0, // ✅ Changed from "Needle Runtime %" to "Needle Time %"
           sewingSpeed: row["SPM"] || 0,
           stitchCount: row["Stitch Count"] || 0,
           // ✅ Add tile data for access in component
           tile1_productive_time: response.data.tile1_productive_time || {},
           tile2_needle_time: response.data.tile2_needle_time || {},
           tile3_sewing_speed: response.data.tile3_sewing_speed || {},
-          tile4_total_hours: response.data.tile4_total_hours || {}
+          tile4_total_hours: response.data.tile4_total_hours || {},
         };
       });
-      
+
       console.log("✅ Final mapped data:", mappedRows);
       setData(mappedRows);
-
     } catch (error) {
       console.error("Error fetching line data:", error);
       setData([]);
@@ -278,42 +302,43 @@ export default function Line({
 
     // Apply date filters first
     if (from && to) {
-      filtered = filtered.filter(row => {
+      filtered = filtered.filter((row) => {
         if (!row.date) return false;
-        
-        const rowDateStr = row.date.replace(/:/g, '-');
+
+        const rowDateStr = row.date.replace(/:/g, "-");
         const rowDate = new Date(rowDateStr);
         const fromDate = new Date(from);
         const toDate = new Date(to);
-        
+
         return rowDate >= fromDate && rowDate <= toDate;
       });
     } else if (from) {
-      filtered = filtered.filter(row => {
+      filtered = filtered.filter((row) => {
         if (!row.date) return false;
-        
-        const rowDateStr = row.date.replace(/:/g, '-');
+
+        const rowDateStr = row.date.replace(/:/g, "-");
         const rowDate = new Date(rowDateStr);
         const fromDate = new Date(from);
-        
+
         return rowDate >= fromDate;
       });
     } else if (to) {
-      filtered = filtered.filter(row => {
+      filtered = filtered.filter((row) => {
         if (!row.date) return false;
-        
-        const rowDateStr = row.date.replace(/:/g, '-');
+
+        const rowDateStr = row.date.replace(/:/g, "-");
         const rowDate = new Date(rowDateStr);
         const toDate = new Date(to);
-        
+
         return rowDate <= toDate;
       });
     }
 
     // Apply line ID filter after date filters
     if (lineId && lineId !== "") {
-      filtered = filtered.filter(row => 
-        row.lineNumber && row.lineNumber.toString() === lineId.toString()
+      filtered = filtered.filter(
+        (row) =>
+          row.lineNumber && row.lineNumber.toString() === lineId.toString()
       );
     }
 
@@ -326,42 +351,43 @@ export default function Line({
 
     // Apply date filters
     if (from && to) {
-      filtered = filtered.filter(row => {
+      filtered = filtered.filter((row) => {
         if (!row.date) return false;
-        
-        const rowDateStr = row.date.replace(/:/g, '-');
+
+        const rowDateStr = row.date.replace(/:/g, "-");
         const rowDate = new Date(rowDateStr);
         const fromDate = new Date(from);
         const toDate = new Date(to);
-        
+
         return rowDate >= fromDate && rowDate <= toDate;
       });
     } else if (from) {
-      filtered = filtered.filter(row => {
+      filtered = filtered.filter((row) => {
         if (!row.date) return false;
-        
-        const rowDateStr = row.date.replace(/:/g, '-');
+
+        const rowDateStr = row.date.replace(/:/g, "-");
         const rowDate = new Date(rowDateStr);
         const fromDate = new Date(from);
-        
+
         return rowDate >= fromDate;
       });
     } else if (to) {
-      filtered = filtered.filter(row => {
+      filtered = filtered.filter((row) => {
         if (!row.date) return false;
-        
-        const rowDateStr = row.date.replace(/:/g, '-');
+
+        const rowDateStr = row.date.replace(/:/g, "-");
         const rowDate = new Date(rowDateStr);
         const toDate = new Date(to);
-        
+
         return rowDate <= toDate;
       });
     }
 
     // Apply line ID filter
     if (lineId && lineId !== "") {
-      filtered = filtered.filter(row => 
-        row.lineNumber && row.lineNumber.toString() === lineId.toString()
+      filtered = filtered.filter(
+        (row) =>
+          row.lineNumber && row.lineNumber.toString() === lineId.toString()
       );
     }
 
@@ -375,37 +401,39 @@ export default function Line({
 
   const getAvailableLineIds = () => {
     if (!from && !to) return lineOptions;
-    
+
     let dateFiltered = [...data];
-    
+
     if (from && to) {
-      dateFiltered = dateFiltered.filter(row => {
+      dateFiltered = dateFiltered.filter((row) => {
         if (!row.date) return false;
-        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDateStr = row.date.replace(/:/g, "-");
         const rowDate = new Date(rowDateStr);
         const fromDate = new Date(from);
         const toDate = new Date(to);
         return rowDate >= fromDate && rowDate <= toDate;
       });
     } else if (from) {
-      dateFiltered = dateFiltered.filter(row => {
+      dateFiltered = dateFiltered.filter((row) => {
         if (!row.date) return false;
-        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDateStr = row.date.replace(/:/g, "-");
         const rowDate = new Date(rowDateStr);
         const fromDate = new Date(from);
         return rowDate >= fromDate;
       });
     } else if (to) {
-      dateFiltered = dateFiltered.filter(row => {
+      dateFiltered = dateFiltered.filter((row) => {
         if (!row.date) return false;
-        const rowDateStr = row.date.replace(/:/g, '-');
+        const rowDateStr = row.date.replace(/:/g, "-");
         const rowDate = new Date(rowDateStr);
         const toDate = new Date(to);
         return rowDate <= toDate;
       });
     }
-    
-    return [...new Set(dateFiltered.map(row => row.lineNumber).filter(Boolean))];
+
+    return [
+      ...new Set(dateFiltered.map((row) => row.lineNumber).filter(Boolean)),
+    ];
   };
 
   const availableLineOptions = getFilteredLineOptions();
@@ -428,10 +456,7 @@ export default function Line({
   const maintenanceSum = sumByKey("maintenanceDecimal");
   const needleBreakSum = sumByKey("needleBreakDecimal");
 
-  // ✅ Calculate tile data based on filtered results, not from backend
-
-  // ✅ Fix the tile data calculation to use the correct format
-  
+  // ✅ FIXED: Calculate tile data based on FILTERED data, not original data
   const getTileDataFromFiltered = () => {
     if (filtered.length === 0) {
       return [
@@ -442,122 +467,83 @@ export default function Line({
           color: "tile-color-blue",
         },
         {
-          label: "Needle Time %", 
+          label: "Needle Time %",
           value: "0%",
           bg: "tile-bg-green",
           color: "tile-color-green",
         },
-        { 
-          label: "Sewing Speed", 
+        {
+          label: "Sewing Speed",
           value: "0",
-          bg: "tile-bg-orange", 
-          color: "tile-color-orange" 
+          bg: "tile-bg-orange",
+          color: "tile-color-orange",
         },
         {
           label: "Total Hours",
-          value: "0h 0m",  // ✅ Changed format
+          value: "0h 0m",
           bg: "tile-bg-pink",
           color: "tile-color-pink",
         },
       ];
     }
-  
-    // ✅ Use backend tile data if available, otherwise calculate from filtered data
-    const firstRow = filtered[0] || {};
-    const hasBackendTileData = firstRow.tile1_productive_time && 
-                               Object.keys(firstRow.tile1_productive_time).length > 0;
-  
-    if (hasBackendTileData) {
-      // ✅ Use backend tile data but format correctly
-      return [
-        {
-          label: "Productive Time %",
-          value: `${(firstRow.tile1_productive_time.percentage || 0).toFixed(2)}%`,
-          bg: "tile-bg-blue",
-          color: "tile-color-blue",
-        },
-        {
-          label: "Needle Time %",
-          value: `${(firstRow.tile2_needle_time.percentage || 0).toFixed(2)}%`,
-          bg: "tile-bg-green",
-          color: "tile-color-green",
-        },
-        { 
-          label: "Sewing Speed", 
-          value: Math.round(firstRow.tile3_sewing_speed.average_spm || 0).toString(),
-          bg: "tile-bg-orange", 
-          color: "tile-color-orange" 
-        },
-        {
-          label: "Total Hours",
-          // ✅ Convert HH:MM format to "Xh Ym" format
-          value: convertHHMMToHoursMinutes(firstRow.tile4_total_hours.total_hours || "00:00"),
-          bg: "tile-bg-pink",
-          color: "tile-color-pink",
-        },
-      ];
-    } else {
-      // ✅ Calculate from filtered data as fallback
-      const avgPT = filtered.reduce((sum, row) => sum + (parseFloat(row.pt) || 0), 0) / filtered.length;
-      const avgNeedleRuntime = filtered.reduce((sum, row) => sum + (parseFloat(row.needleRuntime) || 0), 0) / filtered.length;
-      const avgSewingSpeed = filtered.reduce((sum, row) => sum + (parseFloat(row.sewingSpeed) || 0), 0) / filtered.length;
-      const totalHoursDisplay = formatHoursMins(totalHoursSum);
-  
-      return [
-        {
-          label: "Productive Time %",
-          value: `${avgPT.toFixed(2)}%`,
-          bg: "tile-bg-blue",
-          color: "tile-color-blue",
-        },
-        {
-          label: "Needle Time %",
-          value: `${avgNeedleRuntime.toFixed(2)}%`,
-          bg: "tile-bg-green",
-          color: "tile-color-green",
-        },
-        { 
-          label: "Sewing Speed", 
-          value: Math.round(avgSewingSpeed).toString(),
-          bg: "tile-bg-orange", 
-          color: "tile-color-orange" 
-        },
-        {
-          label: "Total Hours",
-          value: totalHoursDisplay,  // ✅ This already uses formatHoursMins which gives "Xh Ym" format
-          bg: "tile-bg-pink",
-          color: "tile-color-pink",
-        },
-      ];
-    }
+
+    // ✅ Calculate from FILTERED data
+    const totalFilteredHours = filtered.reduce(
+      (sum, row) => sum + (parseFloat(row.totalHoursDecimal) || 0),
+      0
+    );
+    const avgPT =
+      filtered.reduce((sum, row) => sum + (parseFloat(row.pt) || 0), 0) /
+      filtered.length;
+    const avgNeedleRuntime =
+      filtered.reduce(
+        (sum, row) => sum + (parseFloat(row.needleRuntime) || 0),
+        0
+      ) / filtered.length;
+    const avgSewingSpeed =
+      filtered.reduce(
+        (sum, row) => sum + (parseFloat(row.sewingSpeed) || 0),
+        0
+      ) / filtered.length;
+    const totalHoursDisplay = formatHoursMins(totalFilteredHours);
+
+    return [
+      {
+        label: "Productive Time %",
+        value: `${(avgPT || 0).toFixed(2)}%`,
+        bg: "tile-bg-blue",
+        color: "tile-color-blue",
+      },
+      {
+        label: "Needle Time %",
+        value: `${(avgNeedleRuntime || 0).toFixed(2)}%`,
+        bg: "tile-bg-green",
+        color: "tile-color-green",
+      },
+      {
+        label: "Sewing Speed",
+        value: Math.round(avgSewingSpeed || 0).toString(),
+        bg: "tile-bg-orange",
+        color: "tile-color-orange",
+      },
+      {
+        label: "Total Hours",
+        value: totalHoursDisplay,
+        bg: "tile-bg-pink",
+        color: "tile-color-pink",
+      },
+    ];
   };
-  
+
   // ✅ Add helper function to convert HH:MM to "Xh Ym" format
   function convertHHMMToHoursMinutes(timeStr) {
     if (!timeStr || timeStr === "00:00") return "0h 0m";
-    
-    const [hours, minutes] = timeStr.split(':').map(Number);
+
+    const [hours, minutes] = timeStr.split(":").map(Number);
     return `${hours}h ${minutes}m`;
   }
-  
-  // ✅ Remove these old lines:
-  // const pieRow = filtered[0] || {};
-  // const tile1ProductivityData = pieRow.tile1_productive_time || {};
-  // const tile2NeedleTimeData = pieRow.tile2_needle_time || {};
-  // const tile3SewingSpeedData = pieRow.tile3_sewing_speed || {};
-  // const tile4TotalHoursData = pieRow.tile4_total_hours || {};
-  
-  // const tiles = [
-  //   {
-  //     label: "Productive Time %",
-  //     value: tile1ProductivityData.percentage + "%" || "0%",
-  //     bg: "tile-bg-blue",
-  //     color: "tile-color-blue",
-  //   },
-  //   ... rest of old tile data
-  // ];
-  
-  // ✅ Use the new tile data calculation
+
+  // ✅ Use filtered data for tiles
   const tiles = getTileDataFromFiltered();
 
   // ✅ Pagination calculations
@@ -569,7 +555,10 @@ export default function Line({
 
   // Raw data pagination
   const rawRowsPerPage = 10;
-  const filteredRawPageCount = Math.max(1, Math.ceil(filteredRawData.length / rawRowsPerPage));
+  const filteredRawPageCount = Math.max(
+    1,
+    Math.ceil(filteredRawData.length / rawRowsPerPage)
+  );
   const filteredRawPaginated = filteredRawData.slice(
     (rawPage - 1) * rawRowsPerPage,
     rawPage * rawRowsPerPage
@@ -694,6 +683,8 @@ export default function Line({
           row.calculationValue,
           row.txLogId,
           row.strLogId,
+          row.averg,
+          row.piececnt,
           row.createdAt,
         ].join(",")
       ),
@@ -736,6 +727,8 @@ export default function Line({
               <td>${row.calculationValue}</td>
               <td>${row.txLogId}</td>
               <td>${row.strLogId}</td>
+              <td>${row.averg}</td>
+              <td>${row.piececnt}</td>            
               <td>${row.createdAt}</td>
             </tr>
           `
@@ -811,8 +804,14 @@ export default function Line({
   if (tableOnly) {
     return (
       <div className="machine-table-card">
-        <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
-          <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
+        <div
+          className="machine-table-scroll"
+          style={{ overflowX: "auto", minWidth: "100%" }}
+        >
+          <table
+            className="machine-table"
+            style={{ tableLayout: "auto", width: "100%" }}
+          >
             <thead>
               <tr>
                 {tableHeaders.map((h) => (
@@ -881,7 +880,7 @@ export default function Line({
       {/* Title and Buttons Row */}
       <div className="machine-title-row">
         <div className="machine-title">
-          {showRawData ? 'Line Raw Data' : 'Line Report Table'}
+          {showRawData ? "Line Raw Data" : "Line Report Table"}
         </div>
         <div className="machine-title-btns">
           <button
@@ -901,11 +900,13 @@ export default function Line({
           </button>
           <button
             type="button"
-            className={`machine-btn ${showRawData ? 'machine-btn-orange' : 'machine-btn-raw'}`}
+            className={`machine-btn ${
+              showRawData ? "machine-btn-orange" : "machine-btn-raw"
+            }`}
             onClick={handleRawData}
           >
             <FaDownload className="machine-btn-icon" />
-            {showRawData ? 'View Summary' : 'View Raw Data'}
+            {showRawData ? "View Summary" : "View Raw Data"}
           </button>
         </div>
       </div>
@@ -913,13 +914,36 @@ export default function Line({
       {/* Conditional rendering based on showRawData */}
       {showRawData ? (
         /* Raw Data Table - Show when showRawData is true */
-        <div className="machine-table-card" style={{ marginTop: '20px' }}>
+        <div className="machine-table-card" style={{ marginTop: "20px" }}>
           {/* Raw Data Filters */}
-          <div className="machine-header-actions" style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
-            <div style={{ display: "flex", gap: 25, alignItems: "center", flexWrap: "wrap" }}>
-              <div className="date-input-group" style={{ display: "flex", gap: 8 }}>
-                <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <span><FaCalendarAlt className="calendar-icon" /></span>
+          <div
+            className="machine-header-actions"
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              marginBottom: 16,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 25,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                className="date-input-group"
+                style={{ display: "flex", gap: 8 }}
+              >
+                <div
+                  className="date-field"
+                  style={{ display: "flex", alignItems: "center", gap: 4 }}
+                >
+                  <span>
+                    <FaCalendarAlt className="calendar-icon" />
+                  </span>
                   <input
                     type="date"
                     value={from}
@@ -930,10 +954,17 @@ export default function Line({
                     className="date-input"
                     style={{ width: 110 }}
                   />
-                  <span className="date-label" style={{ fontSize: 12 }}>From</span>
+                  <span className="date-label" style={{ fontSize: 12 }}>
+                    From
+                  </span>
                 </div>
-                <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <span><FaCalendarAlt className="calendar-icon" /></span>
+                <div
+                  className="date-field"
+                  style={{ display: "flex", alignItems: "center", gap: 4 }}
+                >
+                  <span>
+                    <FaCalendarAlt className="calendar-icon" />
+                  </span>
                   <input
                     type="date"
                     value={to}
@@ -944,7 +975,9 @@ export default function Line({
                     className="date-input"
                     style={{ width: 110 }}
                   />
-                  <span className="date-label" style={{ fontSize: 12 }}>To</span>
+                  <span className="date-label" style={{ fontSize: 12 }}>
+                    To
+                  </span>
                 </div>
               </div>
 
@@ -959,7 +992,9 @@ export default function Line({
               >
                 <option value="">Select Line ID</option>
                 {availableLineOptions.map((id) => (
-                  <option key={id} value={id}>{id}</option>
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
                 ))}
               </select>
 
@@ -981,29 +1016,43 @@ export default function Line({
 
           {/* Raw Data Filter Status */}
           {(from || to || lineId) && (
-            <div style={{ 
-              padding: "8px 16px", 
-              marginBottom: "16px", 
-              backgroundColor: filteredRawData.length > 0 ? "#e3f2fd" : "#ffebee", 
-              borderRadius: "4px", 
-              fontSize: "14px",
-              color: filteredRawData.length > 0 ? "#1976d2" : "#d32f2f"
-            }}>
+            <div
+              style={{
+                padding: "8px 16px",
+                marginBottom: "16px",
+                backgroundColor:
+                  filteredRawData.length > 0 ? "#e3f2fd" : "#ffebee",
+                borderRadius: "4px",
+                fontSize: "14px",
+                color: filteredRawData.length > 0 ? "#1976d2" : "#d32f2f",
+              }}
+            >
               <strong>Active Filters:</strong>
               {from && <span style={{ marginLeft: "8px" }}>From: {from}</span>}
               {to && <span style={{ marginLeft: "8px" }}>To: {to}</span>}
-              {lineId && <span style={{ marginLeft: "8px" }}>Line: {lineId}</span>}
-              <span style={{ marginLeft: "8px" }}>({filteredRawData.length} of {rawData.length} records)</span>
+              {lineId && (
+                <span style={{ marginLeft: "8px" }}>Line: {lineId}</span>
+              )}
+              <span style={{ marginLeft: "8px" }}>
+                ({filteredRawData.length} of {rawData.length} records)
+              </span>
               {filteredRawData.length === 0 && (
                 <div style={{ marginTop: "4px", fontWeight: "bold" }}>
-                  ⚠️ No raw data found for the selected combination. Try adjusting your filters.
+                  ⚠️ No raw data found for the selected combination. Try
+                  adjusting your filters.
                 </div>
               )}
             </div>
           )}
 
-          <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
-            <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
+          <div
+            className="machine-table-scroll"
+            style={{ overflowX: "auto", minWidth: "100%" }}
+          >
+            <table
+              className="machine-table"
+              style={{ tableLayout: "auto", width: "100%" }}
+            >
               <thead>
                 <tr>
                   {rawDataHeaders.map((h) => (
@@ -1033,7 +1082,11 @@ export default function Line({
                       colSpan={rawDataHeaders.length}
                       className="machine-table-nodata"
                     >
-                      {loading ? "Loading raw data..." : (from || to || lineId) ? "No raw data found for the selected filters." : "No raw data found."}
+                      {loading
+                        ? "Loading raw data..."
+                        : from || to || lineId
+                        ? "No raw data found for the selected filters."
+                        : "No raw data found."}
                     </td>
                   </tr>
                 ) : (
@@ -1057,6 +1110,8 @@ export default function Line({
                       <td>{row.calculationValue}</td>
                       <td>{row.txLogId}</td>
                       <td>{row.strLogId}</td>
+                      <td>{row.averg}</td>
+                      <td>{row.piececnt}</td>
                       <td>{row.createdAt}</td>
                     </tr>
                   ))
@@ -1072,11 +1127,34 @@ export default function Line({
           {/* Table Card */}
           <div className="machine-table-card">
             {/* Filters and Actions inside table card */}
-            <div className="machine-header-actions" style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
-              <div style={{ display: "flex", gap: 25, alignItems: "center", flexWrap: "wrap" }}>
-                <div className="date-input-group" style={{ display: "flex", gap: 8 }}>
-                  <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span><FaCalendarAlt className="calendar-icon" /></span>
+            <div
+              className="machine-header-actions"
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  gap: 25,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div
+                  className="date-input-group"
+                  style={{ display: "flex", gap: 8 }}
+                >
+                  <div
+                    className="date-field"
+                    style={{ display: "flex", alignItems: "center", gap: 4 }}
+                  >
+                    <span>
+                      <FaCalendarAlt className="calendar-icon" />
+                    </span>
                     <input
                       type="date"
                       value={from}
@@ -1084,10 +1162,17 @@ export default function Line({
                       className="date-input"
                       style={{ width: 110 }}
                     />
-                    <span className="date-label" style={{ fontSize: 12 }}>From</span>
+                    <span className="date-label" style={{ fontSize: 12 }}>
+                      From
+                    </span>
                   </div>
-                  <div className="date-field" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span><FaCalendarAlt className="calendar-icon" /></span>
+                  <div
+                    className="date-field"
+                    style={{ display: "flex", alignItems: "center", gap: 4 }}
+                  >
+                    <span>
+                      <FaCalendarAlt className="calendar-icon" />
+                    </span>
                     <input
                       type="date"
                       value={to}
@@ -1095,7 +1180,9 @@ export default function Line({
                       className="date-input"
                       style={{ width: 110 }}
                     />
-                    <span className="date-label" style={{ fontSize: 12 }}>To</span>
+                    <span className="date-label" style={{ fontSize: 12 }}>
+                      To
+                    </span>
                   </div>
                 </div>
                 <select
@@ -1108,15 +1195,19 @@ export default function Line({
                   {availableLineOptions.map((id) => {
                     const isAvailable = availableLineIds.includes(id);
                     return (
-                      <option 
-                        key={id} 
+                      <option
+                        key={id}
                         value={id}
                         style={{
-                          color: (from || to) && !isAvailable ? '#999' : '#000',
-                          fontStyle: (from || to) && !isAvailable ? 'italic' : 'normal'
+                          color: (from || to) && !isAvailable ? "#999" : "#000",
+                          fontStyle:
+                            (from || to) && !isAvailable ? "italic" : "normal",
                         }}
                       >
-                        {id} {(from || to) && !isAvailable ? '(No data in date range)' : ''}
+                        {id}{" "}
+                        {(from || to) && !isAvailable
+                          ? "(No data in date range)"
+                          : ""}
                       </option>
                     );
                   })}
@@ -1143,29 +1234,44 @@ export default function Line({
 
             {/* Filter Status */}
             {(from || to || lineId) && (
-              <div style={{ 
-                padding: "8px 16px", 
-                marginBottom: "16px", 
-                backgroundColor: filtered.length > 0 ? "#e3f2fd" : "#ffebee", 
-                borderRadius: "4px", 
-                fontSize: "14px",
-                color: filtered.length > 0 ? "#1976d2" : "#d32f2f"
-              }}>
+              <div
+                style={{
+                  padding: "8px 16px",
+                  marginBottom: "16px",
+                  backgroundColor: filtered.length > 0 ? "#e3f2fd" : "#ffebee",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                  color: filtered.length > 0 ? "#1976d2" : "#d32f2f",
+                }}
+              >
                 <strong>Active Filters:</strong>
-                {from && <span style={{ marginLeft: "8px" }}>From: {from}</span>}
+                {from && (
+                  <span style={{ marginLeft: "8px" }}>From: {from}</span>
+                )}
                 {to && <span style={{ marginLeft: "8px" }}>To: {to}</span>}
-                {lineId && <span style={{ marginLeft: "8px" }}>Line: {lineId}</span>}
-                <span style={{ marginLeft: "8px" }}>({filtered.length} of {data.length} records)</span>
+                {lineId && (
+                  <span style={{ marginLeft: "8px" }}>Line: {lineId}</span>
+                )}
+                <span style={{ marginLeft: "8px" }}>
+                  ({filtered.length} of {data.length} records)
+                </span>
                 {filtered.length === 0 && (
                   <div style={{ marginTop: "4px", fontWeight: "bold" }}>
-                    ⚠️ No data found for the selected combination. Try adjusting your filters.
+                    ⚠️ No data found for the selected combination. Try adjusting
+                    your filters.
                   </div>
                 )}
               </div>
             )}
 
-            <div className="machine-table-scroll" style={{ overflowX: "auto", minWidth: "100%" }}>
-              <table className="machine-table" style={{ tableLayout: "auto", width: "100%" }}>
+            <div
+              className="machine-table-scroll"
+              style={{ overflowX: "auto", minWidth: "100%" }}
+            >
+              <table
+                className="machine-table"
+                style={{ tableLayout: "auto", width: "100%" }}
+              >
                 <thead>
                   <tr>
                     {tableHeaders.map((h) => (
@@ -1195,28 +1301,68 @@ export default function Line({
                         colSpan={tableHeaders.length}
                         className="machine-table-nodata"
                       >
-                        {(from || to || lineId) ? "No data found for the selected filters." : "No data found."}
+                        {from || to || lineId
+                          ? "No data found for the selected filters."
+                          : "No data found."}
                       </td>
                     </tr>
                   ) : (
                     paginated.map((row, idx) => (
                       <tr key={idx}>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.sNo}</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.date}</td>
-                        <td style={{ textAlign: 'center', padding: '8px', fontWeight: 'bold' }}>{row.lineNumber}</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.totalHours}</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.sewing}</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.idle}</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.rework}</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.noFeeding}</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.meeting}</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.maintenance}</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.needleBreak}</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.pt}%</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.npt}%</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.needleRuntime}%</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.sewingSpeed}</td>
-                        <td style={{ textAlign: 'center', padding: '8px' }}>{row.stitchCount}</td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.sNo}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.date}
+                        </td>
+                        <td
+                          style={{
+                            textAlign: "center",
+                            padding: "8px",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {row.lineNumber}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.totalHours}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.sewing}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.idle}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.rework}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.noFeeding}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.meeting}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.maintenance}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.needleBreak}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.pt}%
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.npt}%
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.needleRuntime}%
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.sewingSpeed}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          {row.stitchCount}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -1226,7 +1372,7 @@ export default function Line({
             <Pagination />
           </div>
 
-          {/* ✅ Tiles Row - Use line tile data */}
+          {/* ✅ Tiles Row - Use filtered tile data */}
           <div className="machine-tiles-row machine-tiles-row-full">
             {tiles.map((tile, idx) => (
               <div
@@ -1240,8 +1386,27 @@ export default function Line({
           </div>
 
           {/* Pie Chart Card - Full width */}
-          <div className="machine-pie-card machine-pie-card-full" style={{ display: 'flex', alignItems: 'center', gap: '2rem', minHeight: '400px', padding: '35px', }}>
-            <div className="machine-pie-chart machine-pie-chart-large" style={{ minWidth: 420, width: 420, height: 380, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div
+            className="machine-pie-card machine-pie-card-full"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "2rem",
+              minHeight: "400px",
+              padding: "35px",
+            }}
+          >
+            <div
+              className="machine-pie-chart machine-pie-chart-large"
+              style={{
+                minWidth: 420,
+                width: 420,
+                height: 380,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -1249,10 +1414,19 @@ export default function Line({
                       { name: "Sewing", value: Math.max(sewingSum, 0.01) },
                       { name: "Idle", value: Math.max(idleSum, 0.01) },
                       { name: "Rework", value: Math.max(reworkSum, 0.01) },
-                      { name: "No Feeding", value: Math.max(noFeedingSum, 0.01) },
+                      {
+                        name: "No Feeding",
+                        value: Math.max(noFeedingSum, 0.01),
+                      },
                       { name: "Meeting", value: Math.max(meetingSum, 0.01) },
-                      { name: "Maintenance", value: Math.max(maintenanceSum, 0.01) },
-                      { name: "Needle Break", value: Math.max(needleBreakSum, 0.01) },
+                      {
+                        name: "Maintenance",
+                        value: Math.max(maintenanceSum, 0.01),
+                      },
+                      {
+                        name: "Needle Break",
+                        value: Math.max(needleBreakSum, 0.01),
+                      },
                     ]}
                     dataKey="value"
                     nameKey="name"
@@ -1272,41 +1446,55 @@ export default function Line({
                       maintenanceSum,
                       needleBreakSum,
                     ].map((_, i) => (
-                      <Cell key={i} fill={pieColors[i % pieColors.length]}  
-                      style={{ cursor: 'pointer' }} />
+                      <Cell
+                        key={i}
+                        fill={pieColors[i % pieColors.length]}
+                        style={{ cursor: "pointer" }}
+                      />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value, name) => [
-                      `${formatHoursMins(value)} (${((value / totalHoursSum) * 100).toFixed(1)}%)`,
-                      name
+                      `${formatHoursMins(value)} (${(
+                        (value / totalHoursSum) *
+                        100
+                      ).toFixed(1)}%)`,
+                      name,
                     ]}
-                    labelStyle={{ color: '#000' }}
-                    contentStyle={{ 
-                      backgroundColor: '#fff', 
-                      border: '1px solid #ccc',
-                      borderRadius: '4px',
-                      fontSize: '14px'
+                    labelStyle={{ color: "#000" }}
+                    contentStyle={{
+                      backgroundColor: "#fff",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
+                      fontSize: "14px",
                     }}
                   />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="machine-pie-info" style={{ flex: 1, padding: '1rem' }}>
-              <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '16px' }}>
-                Hours Breakdown (Filtered Results: {formatHoursMins(totalHoursSum)})
+            <div
+              className="machine-pie-info"
+              style={{ flex: 1, padding: "1rem" }}
+            >
+              <div
+                style={{ fontWeight: 600, marginBottom: 8, fontSize: "16px" }}
+              >
+                Hours Breakdown ({filtered.length} of {data.length} records:{" "}
+                {formatHoursMins(totalHoursSum)})
               </div>
-              <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>
-                <b>Total Hours:</b> {formatHoursMins(totalHoursSum)}
+              <div style={{ marginBottom: "8px", fontWeight: "bold" }}>
+                <b>Filtered Total Hours:</b> {formatHoursMins(totalHoursSum)}
               </div>
-              <div style={{ fontSize: '14px', lineHeight: '1.6' }}>
+              <div style={{ fontSize: "14px", lineHeight: "1.6" }}>
                 <div>{formatHoursMins(sewingSum)} : Sewing Hours</div>
                 <div>{formatHoursMins(idleSum)} : Idle Hours</div>
                 <div>{formatHoursMins(reworkSum)} : Rework Hours</div>
                 <div>{formatHoursMins(noFeedingSum)} : No Feeding Hours</div>
                 <div>{formatHoursMins(meetingSum)} : Meeting Hours</div>
                 <div>{formatHoursMins(maintenanceSum)} : Maintenance Hours</div>
-                <div>{formatHoursMins(needleBreakSum)} : Needle Break Hours</div>
+                <div>
+                  {formatHoursMins(needleBreakSum)} : Needle Break Hours
+                </div>
               </div>
             </div>
           </div>

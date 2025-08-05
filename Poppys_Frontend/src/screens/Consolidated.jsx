@@ -255,21 +255,21 @@ export default function Consolidated() {
     const fetchOptions = async () => {
       try {
         // Fetch Machine options
-        const machineRes = await axios.get("http://localhost:8000/api/poppys-machine-logs/");
+        const machineRes = await axios.get("https://oceanatlantic.pinesphere.co.in/api/poppys-machine-logs/");
         const machines = (machineRes.data.summary || [])
           .map(row => row["Machine ID"])
           .filter(Boolean);
         setMachineOptions([...new Set(machines)]);
 
         // Fetch Operator options  
-        const operatorRes = await axios.get("http://localhost:8000/api/operator-report/");
+        const operatorRes = await axios.get("https://oceanatlantic.pinesphere.co.in/api/operator-report/");
         const operators = (operatorRes.data.summary || [])
           .map(row => row["Operator ID"])
           .filter(Boolean);
         setOperatorIdOptions([...new Set(operators)]);
 
         // Fetch Line options
-        const lineRes = await axios.get("http://localhost:8000/api/line-report/");
+        const lineRes = await axios.get("https://oceanatlantic.pinesphere.co.in/api/line-report/");
         const lines = (lineRes.data.summary || [])
           .map(row => row["Line Number"])
           .filter(Boolean);
@@ -308,7 +308,7 @@ const fetchData = async () => {
     
     // ✅ Use appropriate endpoint based on selected filter
     if (selectedFilter === 'operator' || pendingFilter === 'operator') {
-      response = await axios.get("http://localhost:8000/api/operator-report/", { params });
+      response = await axios.get("https://oceanatlantic.pinesphere.co.in/api/operator-report/", { params });
       const backendRows = response.data.summary || [];
       
       // ✅ Operator data mapping (unchanged)
@@ -348,7 +348,7 @@ const fetchData = async () => {
       setData(mappedRows);
       
     } else if (selectedFilter === 'line' || pendingFilter === 'line') {
-      response = await axios.get("http://localhost:8000/api/line-report/", { params });
+      response = await axios.get("https://oceanatlantic.pinesphere.co.in/api/line-report/", { params });
       const backendRows = response.data.summary || [];
       
       // ✅ Line data mapping (unchanged)
@@ -390,7 +390,7 @@ const fetchData = async () => {
       console.log("Fetching consolidated data for 'all' filter with enhanced operator mapping...");
       
       // 1. Fetch machine data (primary source)
-      response = await axios.get("http://localhost:8000/api/poppys-machine-logs/", { params });
+      response = await axios.get("https://oceanatlantic.pinesphere.co.in/api/poppys-machine-logs/", { params });
       const machineRows = response.data.summary || [];
 
       // 2. ✅ ENHANCED: Fetch ALL operator data (both summary and raw) for comprehensive mapping
@@ -399,11 +399,11 @@ const fetchData = async () => {
       
       try {
         console.log("Fetching operator summary data...");
-        const operatorRes = await axios.get("http://localhost:8000/api/operator-report/", { params: {} }); // No params = get all
+        const operatorRes = await axios.get("https://oceanatlantic.pinesphere.co.in/api/operator-report/", { params: {} }); // No params = get all
         operatorRows = operatorRes.data.summary || [];
         
         console.log("Fetching operator raw data...");
-        const operatorRawRes = await axios.get("http://localhost:8000/api/operator-report/raw/", { params: {} }); // No params = get all
+        const operatorRawRes = await axios.get("https://oceanatlantic.pinesphere.co.in/api/operator-report/raw/", { params: {} }); // No params = get all
         operatorRawRows = operatorRawRes.data.raw_data || [];
         
         console.log(`✅ Fetched ${operatorRows.length} operator summary records and ${operatorRawRows.length} operator raw records`);
@@ -414,7 +414,7 @@ const fetchData = async () => {
       // 3. ✅ ENHANCED: Fetch line data
       let lineRows = [];
       try {
-        const lineRes = await axios.get("http://localhost:8000/api/line-report/", { params: {} }); // No params = get all
+        const lineRes = await axios.get("https://oceanatlantic.pinesphere.co.in/api/line-report/", { params: {} }); // No params = get all
         lineRows = lineRes.data.summary || [];
         console.log(`✅ Fetched ${lineRows.length} line records`);
       } catch (err) {
@@ -424,7 +424,7 @@ const fetchData = async () => {
       // 4. ✅ ENHANCED: Fetch machine raw data
       let machineRawRows = [];
       try {
-        const rawRes = await axios.get("http://localhost:8000/api/poppys-machine-logs/raw/", { params: {} }); // No params = get all
+        const rawRes = await axios.get("https://oceanatlantic.pinesphere.co.in/api/poppys-machine-logs/raw/", { params: {} }); // No params = get all
         machineRawRows = rawRes.data.raw_data || [];
         console.log(`✅ Fetched ${machineRawRows.length} machine raw records`);
       } catch (e) {
@@ -776,13 +776,13 @@ const fetchRawData = async () => {
     // ✅ FIXED: Use appropriate endpoint based on selected filter
     if (selectedFilter === 'operator' || pendingFilter === 'operator') {
       // ✅ Use operator raw data endpoint (exactly like Operator.jsx)
-      rawDataResponse = await axios.get("http://localhost:8000/api/operator-report/raw/", { params: {} });
+      rawDataResponse = await axios.get("https://oceanatlantic.pinesphere.co.in/api/operator-report/raw/", { params: {} });
     } else if (selectedFilter === 'line' || pendingFilter === 'line') {
       // ✅ Use line raw data endpoint
-      rawDataResponse = await axios.get("http://localhost:8000/api/line-report/raw/", { params: {} });
+      rawDataResponse = await axios.get("https://oceanatlantic.pinesphere.co.in/api/line-report/raw/", { params: {} });
     } else {
       // ✅ Default to machine raw data endpoint
-      rawDataResponse = await axios.get("http://localhost:8000/api/poppys-machine-logs/raw/", { params: {} });
+      rawDataResponse = await axios.get("https://oceanatlantic.pinesphere.co.in/api/poppys-machine-logs/raw/", { params: {} });
     }
 
     console.log("Raw data response:", rawDataResponse.data);
@@ -809,6 +809,8 @@ const fetchRawData = async () => {
       calculationValue: row["Calculation Value"] || row["calculation_value"] || "0",
       txLogId: row["TX Log ID"] || row["tx_log_id"] || "",
       strLogId: row["STR Log ID"] || row["str_log_id"] || "",
+      averg: row["AVERG"] || row["averg"] || "0",           // ✅ ADD THIS
+      piececnt: row["PIECECNT"] || row["piececnt"] || "0",   // ✅ ADD THIS
       createdAt: row["Created At"] || row["created_at"] || ""
     }));
 
@@ -887,7 +889,7 @@ const applyRawDataFilters = (dataToFilter) => {
 const fetchOperatorMapping = async () => {
   try {
     // Fetch all operators from backend
-    const response = await axios.get("http://localhost:8000/api/operators/");
+    const response = await axios.get("https://oceanatlantic.pinesphere.co.in/api/operators/");
     const operators = response.data || [];
     
     // Create dynamic mapping from RFID to operator name
@@ -1006,7 +1008,7 @@ const tileData = [
       "S.No", "Machine ID", "Line Number", "Operator ID", "Operator Name", "Date", 
       "Start Time", "End Time", "Mode", "Mode Description", "Stitch Count", 
       "Needle Runtime", "Needle Stop Time", "Duration", "SPM", "Calculation Value",
-      "TX Log ID", "STR Log ID", "Created At"
+      "TX Log ID", "STR Log ID", "SPM", "AVERG", "Created At"
     ] : getTableHeaders(selectedFilter);
 
     const csv = [
@@ -1019,7 +1021,7 @@ const tileData = [
             `"${row.operatorName || `UNKNOWN-${row.operatorId}`}"`,
             row.date, row.startTime, row.endTime, row.mode, row.modeDescription,
             row.stitchCount, row.needleRuntime, row.needleStopTime, row.duration,
-            row.spm, row.calculationValue, row.txLogId, row.strLogId, row.createdAt
+            row.spm, row.calculationValue, row.txLogId, row.strLogId, row.averg, row.piececnt, row.createdAt
           ].join(",");
         } else {
           switch (selectedFilter) {
@@ -1236,6 +1238,8 @@ const tileData = [
           <td>${row.calculationValue}</td>
           <td>${row.txLogId}</td>
           <td>${row.strLogId}</td>
+          <td>${row.averg}</td>          {/* ✅ ADD THIS */}
+          <td>${row.piececnt}</td>       {/* ✅ ADD THIS */}
           <td>${row.createdAt}</td>
         `;
       } else {
@@ -1672,7 +1676,7 @@ const getRawDataHeaders = (filter) => {
                     "S.No", "Machine ID", "Line Number", "Operator ID", "Operator Name", "Date", 
                     "Start Time", "End Time", "Mode", "Mode Description", "Stitch Count", 
                     "Needle Runtime", "Needle Stop Time", "Duration", "SPM", "Calculation Value",
-                    "TX Log ID", "STR Log ID", "Created At"
+                    "TX Log ID", "STR Log ID", "AVERG", "PIECECNT", "Created At"
                   ] : getTableHeaders(selectedFilter)).map((h) => (
                     <th
                       key={h}
@@ -1722,6 +1726,8 @@ const getRawDataHeaders = (filter) => {
                         <td>{row.calculationValue}</td>
                         <td>{row.txLogId}</td>
                         <td>{row.strLogId}</td>
+                        <td>{row.averg}</td>         {/* ✅ ADD THIS */}
+                        <td>{row.piececnt}</td> 
                         <td>{row.createdAt}</td>
                       </tr>
                     ))

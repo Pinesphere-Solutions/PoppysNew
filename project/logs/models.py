@@ -19,14 +19,26 @@ class MachineLog(models.Model):
     Str_LOGID = models.IntegerField()
     DEVICE_ID = models.IntegerField()
     RESERVE = models.TextField(blank=True, null=True)
+        # ✅ NEW FIELDS ADDED
+    AVERG = models.IntegerField(default=0, null=False, blank=False)
+    PIECECNT = models.IntegerField(default=0, null=False, blank=False)
+    
+    
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)  # Index added
-
+    
     class Meta:
         indexes = [
             models.Index(fields=['DATE']),
             models.Index(fields=['created_at']),
             models.Index(fields=['MODE']),
         ]
+    def save(self, *args, **kwargs):
+        """Override save to ensure defaults are properly set"""
+        if self.AVERG is None:
+            self.AVERG = 0
+        if self.PIECECNT is None:
+            self.PIECECNT = 0
+        super().save(*args, **kwargs)
 
 
 
